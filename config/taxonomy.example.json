@@ -1,0 +1,62 @@
+{
+  "project": {
+    "name": "My Knowledge Base",
+    "description": "A short description of what kind of content this project ingests.",
+    "context": "You are analyzing video content for [organization name], which is a [type of organization]. This context will be passed to the AI classifier so it understands the domain."
+  },
+
+  "content_types": [
+    "testimonial",
+    "interview",
+    "explainer",
+    "podcast clip",
+    "b-roll",
+    "promo",
+    "behind-the-scenes",
+    "educational",
+    "social-media-clip"
+  ],
+
+  "topic_areas": [
+    "topic-one",
+    "topic-two",
+    "topic-three"
+  ],
+
+  "genders": ["male", "female", "mixed", "unknown"],
+
+  "locations": [
+    "office",
+    "studio",
+    "outdoor",
+    "remote",
+    "event",
+    "podcast-studio"
+  ],
+
+  "tones": [
+    "inspirational",
+    "educational",
+    "casual",
+    "urgent",
+    "professional"
+  ],
+
+  "production_qualities": [
+    "professional",
+    "raw",
+    "screen-recording"
+  ],
+
+  "people_of_interest": [
+    {
+      "name": "Person Name",
+      "aliases": ["Nickname", "Alternative Name"]
+    },
+    {
+      "name": "Another Person"
+    }
+  ],
+
+  "additional_instructions": "Any project-specific guidance you want to give the classifier. For example: 'Pay special attention to mentions of X, Y, or Z. When you see W, tag it as a hook.'"
+}

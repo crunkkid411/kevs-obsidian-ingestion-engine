@@ -1,0 +1,67 @@
+{
+  "project": {
+    "name": "CPI",
+    "description": "Stem cell therapy clinic content classification",
+    "context": "You are a content classification agent for Cellular Performance Institute (CPI), a stem cell therapy clinic in Tijuana, Mexico. CPI is the official UFC stem cell provider. Videos include patient testimonials, doctor explainers, podcast clips, procedure footage, and b-roll."
+  },
+
+  "content_types": [
+    "testimonial",
+    "patient-interview",
+    "doctor-interview",
+    "doctor-explainer",
+    "podcast clip",
+    "b-roll",
+    "procedure-footage",
+    "before-and-after",
+    "hook",
+    "promo",
+    "behind-the-scenes",
+    "event-coverage",
+    "educational",
+    "social-media-clip",
+    "compilation"
+  ],
+
+  "topic_areas": [
+    "shoulder", "back", "knees", "hip", "neck", "ankle", "wrist", "elbow",
+    "foot", "hands", "rotator-cuff", "ACL", "cartilage-repair", "spinal-cord",
+    "disc-regeneration",
+    "stem-cells-IV", "stem-cells-injection",
+    "NAD+", "hyperbaric-oxygen", "PEMF", "ozone-therapy", "IV-vitamin-C",
+    "P-Shot", "facial", "hair-treatment", "anti-aging", "neurological",
+    "autoimmune", "erectile-dysfunction", "cancer-treatment", "immunotherapy"
+  ],
+
+  "genders": ["male", "female", "mixed", "unknown"],
+
+  "locations": [
+    "clinic", "treatment-room", "lab", "recovery", "lobby",
+    "outdoor", "remote", "octagon", "podcast-studio", "gym"
+  ],
+
+  "tones": ["inspirational", "educational", "casual", "urgent", "clinical"],
+
+  "production_qualities": ["professional", "raw", "screen-recording"],
+
+  "people_of_interest": [
+    { "name": "Joe Rogan", "aliases": ["JRE"] },
+    { "name": "Eddie Bravo", "aliases": ["10th Planet"] },
+    { "name": "Sean O'Malley", "aliases": ["Sugar Sean", "Suga Sean"] },
+    { "name": "Mike Tyson", "aliases": ["Iron Mike", "Kid Dynamite"] },
+    { "name": "Forrest Griffin" },
+    { "name": "Kevin Nash", "aliases": ["Diesel"] },
+    { "name": "Rey Misterio", "aliases": ["Rey Mysterio"] },
+    { "name": "Tito Ortiz" },
+    { "name": "Liz Carmouche", "aliases": ["Girl-Rilla"] },
+    { "name": "Dominick Cruz" },
+    { "name": "Dean Lister" },
+    { "name": "Andre Galvao" },
+    { "name": "Glen Devitt" },
+    { "name": "Ed Clay" },
+    { "name": "Scotty Nelson", "aliases": ["Scott Nelson"] },
+    { "name": "Deddrick Perry" }
+  ],
+
+  "additional_instructions": "Cross-reference what's discussed in the transcript with what's visible in frames. Procedure footage usually shows medical equipment and patients on tables. Testimonials are typically a single person speaking to camera. Doctor explainers feature staff in clinical attire."
+}

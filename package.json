@@ -1,0 +1,33 @@
+{
+  "name": "kevs-obsidian-ingestion-engine",
+  "version": "0.1.0",
+  "description": "Generic, config-driven video content ingestion engine. Pulls videos from Dropbox/Drive, transcribes them, classifies via AI, and builds an Obsidian knowledge graph + Postgres index.",
+  "type": "module",
+  "main": "src/batch.js",
+  "scripts": {
+    "batch": "node src/batch.js",
+    "test:db": "node -e \"import('./src/db/postgres.js').then(m => m.connect().then(() => { console.log('DB OK'); process.exit(0); }))\"",
+    "setup:python": "pip3 install -r requirements.txt"
+  },
+  "keywords": [
+    "obsidian",
+    "knowledge-graph",
+    "video-processing",
+    "whisper",
+    "claude",
+    "dropbox",
+    "rag",
+    "ingestion",
+    "transcription"
+  ],
+  "author": "Kevin Bahrabadi",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "dotenv": "^16.4.7",
+    "dropbox": "^10.34.0",
+    "googleapis": "^144.0.0",
+    "openai": "^4.77.0",
+    "pg": "^8.20.0"
+  }
+}
