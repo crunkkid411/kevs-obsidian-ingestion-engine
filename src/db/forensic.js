@@ -209,4 +209,39 @@ export async function insertLocationOfInterest(sourceId, l) {
   );
 }
 
+/** Sources that have not yet been through the context-review agent. */
+export async function sourcesNeedingReview() {
+  if (!pool) return [];
+  const r = await pool.query(`
+    SELECT s.id, s.file_name FROM sources s
+    WHERE NOT EXISTS (SELECT 1 FROM context_annotations c WHERE c.source_id = s.id)
+    ORDER BY s.ingested_at`);
+  return r.rows;
+}
+
+/** Pull the transcript + data points the review agent needs for one source. */
+export async function gatherForReview(sourceId) {
+  if (!pool) return null;
+  const utt = await pool.query(
+    `SELECT start_sec, end_sec, speaker_name, text FROM utterances WHERE source_id=$1 ORDER BY start_sec`, [sourceId]);
+  const ev = await pool.query(
+    `SELECT kind, start_sec, end_sec, detail FROM events WHERE source_id=$1 ORDER BY start_sec`, [sourceId]);
+  const loc = await pool.query(
+    `SELECT start_sec, location_name FROM locations_of_interest WHERE source_id=$1 ORDER BY start_sec`, [sourceId]);
+  const src = await pool.query(`SELECT file_name FROM sources WHERE id=$1`, [sourceId]);
+  return { file_name: src.rows[0]?.file_name, utterances: utt.rows, events: ev.rows, locations: loc.rows };
+}
+
+/** Store one context annotation (a reviewable nuance/reference/contradiction). */
+export async function insertContextAnnotation(sourceId, a) {
+  if (!pool) return;
+  await pool.query(
+    `INSERT INTO context_annotations (source_id, kind, start_sec, end_sec, surface_text, linked_name, note, rationale, significance, confidence, backend, model_name, prompt_hash)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+    [sourceId, a.kind || 'nuance', a.start_sec ?? null, a.end_sec ?? null, a.surface_text || null,
+     a.linked_entity || null, a.note || null, a.rationale || null, a.significance || null,
+     a.confidence ?? null, a.backend || null, a.model_name || null, a.prompt_hash || null],
+  );
+}
+
 export function getPool() { return pool; }

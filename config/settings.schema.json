@@ -1,0 +1,95 @@
+{
+  "_comment": "Single source of truth for configurable values. The GUI reads this to decide what to show the investigator; the AI implementing/maintaining the system reads it to know which knobs exist. RULE: gui=true => the user may need to adjust it regularly, so surface it. gui=false => set-once / maintainer-only; keep it OUT of the investigator's UI but the implementing AI must know it exists. 'group' organizes the GUI; 'advanced' groups can be behind a disclosure.",
+
+  "settings": [
+    {
+      "key": "CONTEXT_REVIEW_SYSTEM_PROMPT", "label": "Case context & instructions",
+      "type": "longtext", "gui": true, "group": "Context review",
+      "file": "config/context-review.prompt.md",
+      "help": "The instructions and case knowledge the review agent uses to recognize who/what is being referenced. This is the most important editable field — update it as the case develops. Sensitive content stays local when backend=claude-code."
+    },
+    {
+      "key": "CONTEXT_REVIEW_BACKEND", "label": "Review agent backend",
+      "type": "enum", "options": ["claude-code", "openrouter", "none"],
+      "default": "claude-code", "gui": true, "group": "Context review",
+      "help": "claude-code = your local instance (sensitive case context never leaves the machine). openrouter = test API models (use only since nothing in THIS project is confidential)."
+    },
+    {
+      "key": "CONTEXT_REVIEW_MODEL", "label": "Review agent model",
+      "type": "string", "default": "claude-opus-4-8", "gui": true, "group": "Context review",
+      "help": "Model id. For claude-code backend, a Claude model; for openrouter, an OpenRouter model slug (e.g. qwen/qwen3-vl-8b-instruct)."
+    },
+    {
+      "key": "CONTEXT_REVIEW_CONCURRENCY", "label": "Parallel files under review",
+      "type": "int", "default": 2, "min": 1, "max": 8, "gui": true, "group": "Context review",
+      "help": "How many media files are reviewed at once. ONE agent per file is the design (precision); raise cautiously — too many at once can dilute attention and rate-limit the API."
+    },
+
+    {
+      "key": "SEARCH_INCLUDE_UNREVIEWED", "label": "Include unverified results by default",
+      "type": "bool", "default": false, "gui": true, "group": "Search",
+      "help": "Show AI conclusions that a human hasn't confirmed yet. Off = only verified/high-confidence."
+    },
+    {
+      "key": "SEARCH_TOP_K", "label": "Results per search",
+      "type": "int", "default": 20, "min": 5, "max": 100, "gui": true, "group": "Search"
+    },
+
+    {
+      "key": "ASD_CONF_FLOOR", "label": "Speaker visual-confidence floor",
+      "type": "float", "default": 0.6, "min": 0.0, "max": 1.0, "gui": true, "group": "Accuracy (advanced)",
+      "help": "Below this, a visually-confirmed speaker is still flagged for review. Tune using the coverage report."
+    },
+    {
+      "key": "VOICE_FACE_MATCH_FLOOR", "label": "Voice/face name-match floor",
+      "type": "float", "default": 0.5, "min": 0.0, "max": 1.0, "gui": true, "group": "Accuracy (advanced)",
+      "help": "How similar a voice/face must be to an enrolled person to get their name. Lower = more names + more false matches."
+    },
+    {
+      "key": "LOCATION_CHANGE_THRESHOLD", "label": "New-location sensitivity",
+      "type": "int", "default": 18, "min": 4, "max": 40, "gui": true, "group": "Accuracy (advanced)",
+      "help": "Hamming distance (of the 64-bit scene hash) above which a shot counts as a new location."
+    },
+
+    {
+      "key": "STORAGE", "label": "Storage backend",
+      "type": "enum", "options": ["sqlite", "postgres"], "default": "sqlite",
+      "gui": false, "group": "System",
+      "help": "Set once at install. sqlite for a single investigator; postgres for a shared central index."
+    },
+    {
+      "key": "ASR_MODEL", "label": "ASR model", "type": "string",
+      "default": "nvidia/parakeet-tdt-0.6b-v3", "gui": false, "group": "Models",
+      "help": "Set-once. The implementing AI manages model choice; the investigator never changes it."
+    },
+    {
+      "key": "TEXT_EMBED_MODEL", "label": "Embedding model", "type": "string",
+      "default": "Qwen/Qwen3-Embedding-0.6B", "gui": false, "group": "Models",
+      "help": "Set-once. Changing it requires re-embedding and matching TEXT_EMBED_DIM + vec table dimension."
+    },
+    {
+      "key": "TEXT_EMBED_DIM", "label": "Embedding dimension", "type": "int",
+      "default": 1024, "gui": false, "group": "Models",
+      "help": "Set-once. Must match the embedding model and the vector(N)/vec0 schema dimension."
+    },
+    {
+      "key": "SCENE_THRESHOLD", "label": "Scene-cut detection threshold", "type": "float",
+      "default": 0.4, "gui": false, "group": "Pipeline internals",
+      "help": "Deterministic shot detection; set-once. Distinct from LOCATION_CHANGE_THRESHOLD (which the user may tune)."
+    },
+    {
+      "key": "DIAR_MAX_SPEAKERS", "label": "Max diarization speakers", "type": "int",
+      "default": 4, "gui": false, "group": "Pipeline internals",
+      "help": "Set-once per the diarizer's capability."
+    },
+    {
+      "key": "OSINT_EXPORT_DIR", "label": "OSINT export folder", "type": "path",
+      "default": "./osint-export", "gui": false, "group": "System"
+    },
+    {
+      "key": "LOCAL_ROOT", "label": "Footage folder", "type": "path",
+      "default": "", "gui": false, "group": "System",
+      "help": "Set at install. Read-only; never modified."
+    }
+  ]
+}

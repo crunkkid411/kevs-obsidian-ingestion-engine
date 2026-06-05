@@ -110,6 +110,19 @@ export const config = {
     exportDir: process.env.OSINT_EXPORT_DIR || path.join(ROOT, 'osint-export'),
   },
 
+  // ── Per-media context-review agent (the "nuance" pass) ──────────────────
+  // ONE agent per media file. The system prompt (case context) and model are
+  // GUI-editable (see config/settings.schema.json). claude-code keeps sensitive
+  // context local; openrouter is for testing API models on non-sensitive data.
+  contextReview: {
+    backend: process.env.CONTEXT_REVIEW_BACKEND || 'claude-code', // claude-code|openrouter|mock|none
+    model: process.env.CONTEXT_REVIEW_MODEL || 'claude-opus-4-8',
+    concurrency: parseInt(process.env.CONTEXT_REVIEW_CONCURRENCY || '2'),
+    promptPath: process.env.CONTEXT_REVIEW_PROMPT
+      ? path.resolve(process.env.CONTEXT_REVIEW_PROMPT)
+      : path.join(ROOT, 'config', 'context-review.prompt.md'),
+  },
+
   // Storage backend the NATIVE port targets (the JS prototype uses Postgres).
   storage: process.env.STORAGE || 'sqlite',   // sqlite (recommended) | postgres
 

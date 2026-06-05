@@ -17,6 +17,11 @@
 > - **`docs/HANDOFF.md`** — ordered build plan (milestones + acceptance tests) for
 >   a local Claude Code instance to implement the native tool.
 > - **`docs/ARCHITECTURE.md`** — pipeline, data model, chain-of-custody/provenance.
+> - **`docs/CONTEXT-REVIEW.md`** — the case-aware "nuance" agent: one agent per
+>   video reads your editable case context and adds reference resolutions /
+>   contradictions / notable moments (local Claude Code for sensitive context).
+> - **`docs/SETTINGS.md`** + `config/settings.schema.json` — which knobs are
+>   GUI-exposed vs. set-once (the GUI reads the manifest).
 > - **`docs/SETUP-WINDOWS.md`** — plain-language Windows 10 / 8 GB setup.
 >
 > **Beyond transcription/search, the pipeline flags the "20% nuance"** — a second

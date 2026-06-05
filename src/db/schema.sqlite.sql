@@ -288,3 +288,28 @@ CREATE TABLE IF NOT EXISTS known_locations (
   created_at        TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_knownloc_name ON known_locations(name);
+
+-- Output of the per-media case-context review agent.
+CREATE TABLE IF NOT EXISTS context_annotations (
+  id            TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  source_id     TEXT REFERENCES sources(id) ON DELETE CASCADE,
+  kind          TEXT NOT NULL,
+  start_sec     REAL,
+  end_sec       REAL,
+  surface_text  TEXT,
+  linked_entity TEXT,
+  linked_name   TEXT,
+  note          TEXT,
+  rationale     TEXT,
+  significance  TEXT,
+  confidence    REAL,
+  backend       TEXT,
+  model_name    TEXT,
+  prompt_hash   TEXT,
+  review_status TEXT DEFAULT 'unreviewed',
+  reviewed_by   TEXT,
+  reviewed_at   TEXT,
+  created_at    TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_ctxann_source ON context_annotations(source_id, start_sec);
+CREATE INDEX IF NOT EXISTS idx_ctxann_kind   ON context_annotations(kind);

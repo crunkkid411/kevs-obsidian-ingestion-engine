@@ -191,9 +191,15 @@ trail:
    to an entity, using the known timeline (a video posted 4 months after the
    split that says "imagine if my ex was harassing me, it's been like 4 months"
    → candidate link to the wife) and writes a **rationale + confidence**.
-3. **Never hard-assert.** The link is stored in `reference_resolutions` as a
-   *claim* with its evidence, reviewable and overridable. Search can include or
-   exclude unreviewed inferences.
+3. **Never hard-assert.** The link is stored as a *claim* with its evidence,
+   reviewable and overridable. Search can include or exclude unreviewed inferences.
+
+**This is implemented as the context-review agent (STAGE 7).** A separate pass
+(`npm run review`) sends each video's transcript + data points, plus your
+editable **case-context prompt**, to ONE agent per file (your local Claude Code
+instance for sensitive context, or an API model for testing). It writes
+`context_annotations` — reference resolutions, contradictions, notable moments —
+each with rationale + confidence, flagged for review. See `docs/CONTEXT-REVIEW.md`.
 
 ---
 
@@ -218,6 +224,7 @@ trail:
 | `clips` | in/out span | human-created evidence clips from the player |
 | `identity_enrollments` | print | confirmed voice/face prints per entity (the knowledge base) |
 | `known_locations` | place | named places + reference perceptual hashes ("Defendant's home") |
+| `context_annotations` | claim | per-media case-aware review: reference resolutions, contradictions, notable moments + rationale + confidence (see `docs/CONTEXT-REVIEW.md`) |
 
 Every non-deterministic row carries `model_name`, `model_version`, `params`,
 `confidence`, `determinism`, and `reviewed_by` / `reviewed_at`. Naming + the

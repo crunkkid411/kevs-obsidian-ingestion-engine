@@ -350,6 +350,36 @@ CREATE TABLE IF NOT EXISTS known_locations (
 CREATE INDEX IF NOT EXISTS idx_knownloc_name ON known_locations(name);
 
 -- ───────────────────────────────────────────────────────────────────────────
+-- CONTEXT ANNOTATIONS  (output of the per-media case-context review agent)
+-- The human-meaningful nuance generic models miss: who an oblique reference
+-- points to, why a moment matters, contradictions with known facts. Each is a
+-- reviewable claim with rationale + confidence + which agent/model produced it.
+-- ───────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS context_annotations (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_id     UUID REFERENCES sources(id) ON DELETE CASCADE,
+  kind          TEXT NOT NULL,                 -- reference_resolution|nuance|notable_moment|contradiction
+  start_sec     DOUBLE PRECISION,
+  end_sec       DOUBLE PRECISION,
+  surface_text  TEXT,                          -- the phrase as said
+  linked_entity UUID REFERENCES entities(id) ON DELETE SET NULL,
+  linked_name   TEXT,                          -- name as the agent gave it (pre-resolution)
+  note          TEXT,                          -- plain-language meaning / why it matters
+  rationale     TEXT,                          -- why the agent concluded this
+  significance  TEXT,                          -- none|low|medium|high (video-level echoed per row)
+  confidence    DOUBLE PRECISION,
+  backend       TEXT,                          -- claude-code|openrouter|...
+  model_name    TEXT,
+  prompt_hash   TEXT,                          -- hash of the case-context prompt used
+  review_status TEXT DEFAULT 'unreviewed',     -- unreviewed|confirmed|rejected
+  reviewed_by   TEXT,
+  reviewed_at   TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ctxann_source ON context_annotations(source_id, start_sec);
+CREATE INDEX IF NOT EXISTS idx_ctxann_kind   ON context_annotations(kind);
+
+-- ───────────────────────────────────────────────────────────────────────────
 -- PROCESSING LOG  (per-stage run record for reproducibility)
 -- ───────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS processing_log (

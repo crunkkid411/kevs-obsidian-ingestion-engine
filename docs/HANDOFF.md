@@ -114,6 +114,21 @@ This is what makes output read like a human wrote it (see `docs/IDENTITY.md`).
 coverage report prints; an unknown speaker reads "unidentified speaker 1", not a
 cluster id. (Location naming end-to-end is already passing in the JS prototype.)
 
+### M5.7 — Context-review agent (the case-aware nuance pass)
+Implemented in the JS prototype (`src/review/`, `src/review.js`) and tested — port
+or reuse. ONE agent per media file; backend is pluggable
+(`claude-code` headless for sensitive case context / `openrouter` for testing /
+`mock`); the case-context **system prompt is a GUI-editable file**
+(`config/context-review.prompt.md`). Stores `context_annotations` (reference
+resolutions, contradictions, notable moments) with rationale + confidence +
+`prompt_hash`, all `unreviewed`. Run as a separate, re-runnable pass with a small
+concurrency limit. **Accept:** editing the case prompt and re-running `--all`
+re-annotates; "my ex … 4 months" yields a reference_resolution to the wife with a
+rationale; a noise-only video yields zero annotations.
+**Settings:** wire `config/settings.schema.json` — the GUI shows `gui:true`
+entries (case prompt, backend, model, concurrency, search + accuracy knobs) and
+hides `gui:false` ones (model ids, dims, storage, paths). See `docs/SETTINGS.md`.
+
 ### M6 — Embeddings + search (`embed`)
 fastembed-rs Qwen3-Embedding-0.6B → vectors into sqlite-vec; port the
 query-expansion (`--expand` folds entity aliases/nicknames) from

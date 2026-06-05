@@ -6,6 +6,7 @@
   "main": "src/batch.js",
   "scripts": {
     "ingest": "node src/ingest.js",
+    "review": "node src/review.js",
     "search": "node src/search/query.js",
     "consolidate": "node src/consolidate.js",
     "test:db": "node -e \"import('./src/db/forensic.js').then(m => m.connect().then(() => { console.log('DB OK'); process.exit(0); }))\"",
