@@ -147,10 +147,12 @@ export async function insertUtterance(sourceId, u) {
   const r = await pool.query(
     `INSERT INTO utterances (
        source_id, start_sec, end_sec, text, speaker_id,
+       speaker_name, speaker_confidence,
        audio_speaker, visual_speaker, attribution_method, attribution_confidence,
        attribution_conflict, needs_review
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
     [sourceId, u.start, u.end, u.text, u.speakerId || null,
+     u.speakerName || null, u.speakerConfidence ?? null,
      u.audioSpeaker || null, u.visualSpeaker || null, u.method || 'audio',
      u.confidence ?? null, !!u.conflict, !!u.needsReview],
   );
@@ -199,9 +201,10 @@ export async function insertFrameSignature(sourceId, s) {
 export async function insertLocationOfInterest(sourceId, l) {
   if (!pool) return;
   await pool.query(
-    `INSERT INTO locations_of_interest (source_id, start_sec, end_sec, representative_frame, ahash, recording_date, exported_dir)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    `INSERT INTO locations_of_interest (source_id, start_sec, end_sec, representative_frame, ahash, location_name, location_confidence, recording_date, exported_dir)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
     [sourceId, l.start_sec, l.end_sec ?? null, l.representative_frame || null, l.ahash || null,
+     l.location_name || null, l.location_confidence ?? null,
      l.recording_date || null, l.exported_dir || null],
   );
 }

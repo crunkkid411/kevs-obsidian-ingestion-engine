@@ -114,8 +114,11 @@ CREATE TABLE IF NOT EXISTS utterances (
   end_sec                DOUBLE PRECISION NOT NULL,
   text                   TEXT NOT NULL,
   speaker_id             UUID REFERENCES speakers(id) ON DELETE SET NULL,
+  -- named conclusion (natural language) + how sure we are
+  speaker_name           TEXT,                  -- e.g. "Defendant"; null/"unidentified speaker N"
+  speaker_confidence     DOUBLE PRECISION,
   -- attribution provenance
-  audio_speaker          TEXT,                  -- what diarization said
+  audio_speaker          TEXT,                  -- what diarization said (cluster)
   visual_speaker         TEXT,                  -- what active-speaker-detection said
   attribution_method     TEXT,                  -- audio|visual|both|unresolved
   attribution_confidence DOUBLE PRECISION,
@@ -265,6 +268,8 @@ CREATE TABLE IF NOT EXISTS locations_of_interest (
   end_sec             DOUBLE PRECISION,
   representative_frame TEXT,                     -- path to exported full-res frame
   ahash               TEXT,                      -- perceptual hash (location grouping)
+  location_name       TEXT,                      -- e.g. "Defendant's home" when matched
+  location_confidence DOUBLE PRECISION,
   recording_date      TIMESTAMPTZ,               -- from source container metadata, if any
   exported_dir        TEXT,                      -- OSINT export folder for this location
   status              TEXT DEFAULT 'unreviewed', -- unreviewed|matched|dismissed
@@ -305,6 +310,44 @@ CREATE TABLE IF NOT EXISTS clips (
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_clips_source ON clips(source_id);
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- KNOWLEDGE BASE — the case-specific facts YOU provide, that the system learns
+-- from and applies. This is what turns "Speaker 1" into "Defendant" and
+-- "indoor background" into "Defendant's home".
+-- ───────────────────────────────────────────────────────────────────────────
+
+-- Enrolled identity prints: a confirmed voice or face for a known entity.
+-- Seed these from clips you label ("this is the defendant talking / on screen");
+-- the consolidation pass then names matching speakers/faces across the corpus.
+CREATE TABLE IF NOT EXISTS identity_enrollments (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_id     UUID REFERENCES entities(id) ON DELETE CASCADE,
+  modality      TEXT NOT NULL,                  -- voice | face
+  embedding     vector(512),                    -- voice (~192/256) or face (512); pad/set per model
+  ref_source_id UUID REFERENCES sources(id) ON DELETE SET NULL,
+  ref_start_sec DOUBLE PRECISION,
+  ref_end_sec   DOUBLE PRECISION,
+  confirmed_by  TEXT,                           -- who vouched for this enrollment
+  notes         TEXT,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_enroll_entity ON identity_enrollments(entity_id, modality);
+
+-- Known locations: "Defendant's home", "Mother's house", a vehicle interior...
+-- reference_ahashes holds one or more perceptual hashes of that place so a new
+-- video filmed there is auto-labeled. Optionally tied to an entity (whose place).
+CREATE TABLE IF NOT EXISTS known_locations (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name              TEXT NOT NULL,              -- natural-language place name
+  entity_id         UUID REFERENCES entities(id) ON DELETE SET NULL,
+  reference_ahashes TEXT[] DEFAULT '{}',        -- perceptual hashes of this place
+  reference_frames  TEXT[] DEFAULT '{}',        -- paths to reference frames
+  confirmed_by      TEXT,
+  notes             TEXT,
+  created_at        TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_knownloc_name ON known_locations(name);
 
 -- ───────────────────────────────────────────────────────────────────────────
 -- PROCESSING LOG  (per-stage run record for reproducibility)

@@ -97,6 +97,23 @@ attribution (the prototype already consumes this shape in STAGE 4).
 chosen; with off-screen narration, attribution is `unknown` + `needs_review`.
 This is the highest-value milestone — do not let it silently guess.
 
+### M5.5 — Knowledge base: enrollment, naming, consolidation (`embed`/`analyze`)
+This is what makes output read like a human wrote it (see `docs/IDENTITY.md`).
+- **Enroll**: from `enrollment_clips`, extract a voice print (sherpa-onnx speaker
+  ID) and face print (ArcFace via `ort`); store in `identity_enrollments`.
+  Perceptual-hash `known_locations.reference_frames` into `known_locations`.
+- **Name at ingest**: match each speaker cluster's voice print and each on-screen
+  face to enrolled prints (cosine); match each location's aHash to known places
+  (Hamming). Write `speaker_name`/`speaker_confidence` and `location_name`/
+  `location_confidence`. Fall back to "unidentified speaker N" / "unknown
+  location". The matching algorithms are already implemented and unit-tested in
+  `src/analyze/identify.js` (`matchIdentity`, `matchLocation`) — port them.
+- **Consolidate** (`src/consolidate.js`, tested): propagate confirmed names across
+  the corpus and print coverage ("Defendant recognized in 47/92 videos").
+**Accept:** an enrolled defendant is auto-named in new videos with a confidence;
+coverage report prints; an unknown speaker reads "unidentified speaker 1", not a
+cluster id. (Location naming end-to-end is already passing in the JS prototype.)
+
 ### M6 — Embeddings + search (`embed`)
 fastembed-rs Qwen3-Embedding-0.6B → vectors into sqlite-vec; port the
 query-expansion (`--expand` folds entity aliases/nicknames) from

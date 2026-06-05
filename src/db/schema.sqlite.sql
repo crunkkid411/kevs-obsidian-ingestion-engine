@@ -95,6 +95,8 @@ CREATE TABLE IF NOT EXISTS utterances (
   end_sec                REAL NOT NULL,
   text                   TEXT NOT NULL,
   speaker_id             TEXT,
+  speaker_name           TEXT,                  -- named conclusion ("Defendant")
+  speaker_confidence     REAL,
   audio_speaker          TEXT,
   visual_speaker         TEXT,
   attribution_method     TEXT,
@@ -224,6 +226,8 @@ CREATE TABLE IF NOT EXISTS locations_of_interest (
   end_sec              REAL,
   representative_frame TEXT,
   ahash                TEXT,
+  location_name        TEXT,                    -- "Defendant's home" when matched
+  location_confidence  REAL,
   recording_date       TEXT,
   exported_dir         TEXT,
   status               TEXT DEFAULT 'unreviewed',
@@ -255,3 +259,32 @@ CREATE TABLE IF NOT EXISTS clips (
   created_by    TEXT,
   created_at    TEXT DEFAULT (datetime('now'))
 );
+
+-- KNOWLEDGE BASE (case-specific facts you provide; the system learns + applies).
+-- Voice/face prints go in embeddings_vec like everything else; this table holds
+-- the metadata + which vec rowid is the print.
+CREATE TABLE IF NOT EXISTS identity_enrollments (
+  id            TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  entity_id     TEXT REFERENCES entities(id) ON DELETE CASCADE,
+  modality      TEXT NOT NULL,                  -- voice | face
+  vec_rowid     INTEGER,                        -- rowid in embeddings_vec holding the print
+  ref_source_id TEXT,
+  ref_start_sec REAL,
+  ref_end_sec   REAL,
+  confirmed_by  TEXT,
+  notes         TEXT,
+  created_at    TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_enroll_entity ON identity_enrollments(entity_id, modality);
+
+CREATE TABLE IF NOT EXISTS known_locations (
+  id                TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  name              TEXT NOT NULL,
+  entity_id         TEXT,
+  reference_ahashes TEXT DEFAULT '[]',          -- JSON array of perceptual hashes
+  reference_frames  TEXT DEFAULT '[]',          -- JSON array of frame paths
+  confirmed_by      TEXT,
+  notes             TEXT,
+  created_at        TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_knownloc_name ON known_locations(name);

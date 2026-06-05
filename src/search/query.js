@@ -59,6 +59,7 @@ async function main() {
   const sql = `
     SELECT s.file_name, s.abs_path,
            e.start_sec, e.end_sec, e.content,
+           u.speaker_name, u.speaker_confidence,
            u.audio_speaker, u.visual_speaker, u.attribution_method,
            u.attribution_confidence, u.attribution_conflict, u.needs_review,
            1 - (e.embedding <=> $1) AS similarity
@@ -76,13 +77,14 @@ async function main() {
   for (const row of r.rows) {
     const ts = fmt(row.start_sec);
     const sim = (row.similarity * 100).toFixed(1);
-    const attr = row.visual_speaker || row.audio_speaker || 'unattributed';
+    // Natural-language speaker name when we have one; else the raw cluster.
+    const who = row.speaker_name || row.visual_speaker || row.audio_speaker || 'unidentified speaker';
+    const whoConf = row.speaker_confidence != null ? ` (${(row.speaker_confidence * 100).toFixed(0)}% match)` : '';
     const flags = [
-      row.needs_review ? '⚠ needs-review' : null,
+      row.needs_review ? '⚠ verify' : null,
       row.attribution_conflict ? '⚠ attribution-conflict' : null,
-      row.attribution_confidence != null ? `conf ${(row.attribution_confidence * 100).toFixed(0)}%` : null,
     ].filter(Boolean).join(' · ');
-    console.log(`[${sim}%] ${row.file_name} @ ${ts}  (${row.attribution_method || 'n/a'}: ${attr}) ${flags ? '— ' + flags : ''}`);
+    console.log(`[${sim}%] ${who}${whoConf} — ${row.file_name} @ ${ts} ${flags ? '— ' + flags : ''}`);
     console.log(`        "${(row.content || '').slice(0, 240)}"`);
     console.log(`        ${row.abs_path}\n`);
   }

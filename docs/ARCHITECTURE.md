@@ -35,27 +35,44 @@ segment-level indexing, audio-visual speaker attribution, and semantic search.**
 
 ---
 
-## Core principles (non-negotiable for evidence work)
+## Core principles
+
+> **This is an investigative triage tool, not a court-evidence generator.**
+> Nothing it outputs goes to court on its own — detectives verify every item (in
+> real time, by playing the exact clip) and decide what matters. That changes the
+> posture from "refuse to guess" to **"state the best-supported conclusion in
+> plain language, with a confidence, and make it trivial to verify."**
 
 1. **Sources are immutable.** We read, hash (SHA-256), and never write to or
    delete the originals. Everything derived lives in a separate store keyed by
    the source hash.
-2. **Everything is provenanced.** Every transcript segment, speaker label,
-   visual observation, and AI inference records: source file + hash, exact
-   time span (and frame indices where visual), the model name + version, the
-   prompt/params, the raw model output, and a `determinism` flag
-   (`deterministic` | `model_inference`).
-3. **Deterministic vs. non-deterministic are separated.** Hashing, demux,
-   frame extraction, scene cuts, ASR token timings — deterministic, pipe
-   automatically. Speaker identity, "who does this nickname refer to", topic
-   labels, oblique-reference resolution — **model inferences**, always
-   confidence-scored and flagged for human review. The system never silently
-   promotes an inference to a fact.
-4. **Misattribution is the highest-stakes bug.** Speaker attribution is done
-   with audio **and** visual corroboration; conflicts and low-confidence cases
-   are surfaced, not hidden. (You already caught one misattribution manually —
-   the goal is to make the machine catch them.)
-5. **Reproducibility.** A run is described by config (models, versions, params)
+2. **Everything is provenanced.** Every conclusion records: source file + hash,
+   exact time span (and frame indices where visual), the model name + version,
+   the inputs/params, the raw model output, a `determinism` flag, and a
+   **confidence**. Provenance is what lets a human verify *and* lets us measure
+   accuracy — it is not a reason to withhold a conclusion.
+3. **Name things in natural language. Conclude when the data supports it.**
+   "Defendant at home, 0:14:32" — not "Speaker 1 in a descriptive indoor
+   background." The system uses the **knowledge base** (enrolled people, voices,
+   faces, known locations) plus multiple corroborating data points to assign
+   real names and places. It falls back to description ("unidentified male,
+   unknown indoor location") **only when it genuinely has no match** — and those
+   fall-backs are the to-do list, not the default.
+4. **Naming makes errors visible; vagueness hides them.** If the system names the
+   defendant and is wrong, the reviewer sees it instantly and we can tune. If it
+   only ever says "a speaker," a 50%-miss rate is invisible. So we prefer a
+   confident, checkable name over a safe-sounding non-answer. Confidence scores +
+   coverage stats (e.g. "defendant recognized in 47/92 videos") turn mistakes
+   into a feedback signal.
+5. **Verification happens at the moment of reading.** Every searched quote,
+   speaker, or location is one click from the exact frame in the player. Being
+   occasionally wrong is cheap because confirmation is immediate; that is the
+   whole point of the multi-step, human-in-the-loop design.
+6. **The system learns.** Confirmed identities/locations are enrolled and
+   propagated across the corpus; a periodic **consolidation pass** merges
+   clusters, applies confirmed names everywhere they match, learns new aliases,
+   and reports coverage gaps. (See `docs/IDENTITY.md`.)
+7. **Reproducibility.** A run is described by config (models, versions, params)
    recorded into the DB so any output can be regenerated and audited.
 
 ---
@@ -180,7 +197,7 @@ trail:
 
 ---
 
-## Data model (see `src/db/schema.sql`)
+## Data model (see `src/db/schema.sql`, and `src/db/schema.sqlite.sql` for the native default)
 
 | Table | Grain | Purpose |
 |---|---|---|
@@ -188,16 +205,23 @@ trail:
 | `chain_of_custody` | event | append-only log: ingested/processed/exported, who/what/when, model+version |
 | `media_segments` | time span | shot/scene/utterance windows with start/end + frame indices |
 | `transcript_words` | word | ASR token with precise start/end (deterministic timing) |
-| `utterances` | speech turn | text + speaker_id + **attribution_confidence** + conflict flags |
+| `utterances` | speech turn | text + **speaker_name** + confidence + attribution provenance + conflict flags |
 | `speakers` | voice/person within a source | diarization cluster, linked (maybe) to an entity |
 | `entities` | person/place/thing | canonical name, aliases, nicknames, descriptions, **timeline anchors** |
 | `reference_resolutions` | claim | segment → entity link with rationale + confidence + review status |
 | `visual_observations` | frame/segment | model description of what's on screen, with model provenance |
-| `embeddings` | segment/frame | pgvector vectors for text + multimodal search |
+| `embeddings` | segment/frame | pgvector / sqlite-vec vectors for text + multimodal search |
 | `inferences` | claim | generic model-inference record: input refs, model, prompt, raw output, confidence, reviewed_by |
+| `events` | time span | the **"20% nuance"**: second_speaker / phone_call / location_change / multi_face |
+| `locations_of_interest` | time span | OSINT handoff: exported frame + **location_name** + provenance |
+| `frame_signatures` | frame | perceptual hashes for cross-video fixture / location matching |
+| `clips` | in/out span | human-created evidence clips from the player |
+| `identity_enrollments` | print | confirmed voice/face prints per entity (the knowledge base) |
+| `known_locations` | place | named places + reference perceptual hashes ("Defendant's home") |
 
 Every non-deterministic row carries `model_name`, `model_version`, `params`,
-`prompt_hash`, `confidence`, `determinism`, and `reviewed_by` / `reviewed_at`.
+`confidence`, `determinism`, and `reviewed_by` / `reviewed_at`. Naming + the
+knowledge base are detailed in `docs/IDENTITY.md`.
 
 ---
 

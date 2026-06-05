@@ -23,8 +23,31 @@ import {
   insertWords, upsertSpeaker, insertUtterance, insertEmbedding,
   insertEvent, insertFrameSignature, insertLocationOfInterest,
 } from './db/forensic.js';
-import { analyzeFrames as analyzeSignatures } from './analyze/signatures.js';
+import { analyzeFrames as analyzeSignatures, aHash } from './analyze/signatures.js';
 import { speakerEvents, locationEvents } from './analyze/events.js';
+import { matchLocation, matchIdentity, speakerLabel, locationLabel, describeMoment } from './analyze/identify.js';
+
+/**
+ * Load the case knowledge base (known locations) for natural-language naming.
+ * Sources, in order: precomputed reference_ahashes in the taxonomy, or
+ * reference_frames we aHash now. Returns [{ name, reference_ahashes }].
+ */
+async function loadKnownLocations() {
+  const defs = config.taxonomy.known_locations || [];
+  const out = [];
+  for (const d of defs) {
+    const hashes = [...(d.reference_ahashes || [])];
+    for (const f of d.reference_frames || []) {
+      try { hashes.push(await aHash(f)); } catch { /* missing reference frame */ }
+    }
+    if (hashes.length) out.push({ name: d.name, reference_ahashes: hashes });
+  }
+  return out;
+}
+
+// Case knowledge base, loaded once in main().
+let KNOWN_LOCATIONS = [];     // [{ name, reference_ahashes }]
+let ENROLLMENTS = [];         // [{ entity_name, modality, embedding }] voice/face prints
 
 async function timed(fn) {
   const t = Date.now();
@@ -134,13 +157,14 @@ async function processSource(entry, idx, total) {
     }
 
     // ── STAGE 2 — audio diarization ───────────────────────────────────────
-    let turns = [];
+    let turns = [], clusterEmbeddings = null;
     try {
       if (!hasAudio) throw Object.assign(new Error('no audio'), { soft: true });
       const [diar, ms] = await timed(() => M.runDiarization(wav));
       if (diar.skipped) console.log(`[stage2] diarization skipped: ${diar.reason}`);
       else {
         turns = diar.turns || [];
+        clusterEmbeddings = diar.embeddings || null; // {cluster: [..]} when the native diarizer provides voice prints
         for (const label of new Set(turns.map((t) => t.speaker))) await upsertSpeaker(sourceId, label);
         await logStage(sourceId, 'diarization', 'success', { determinism: 'model_inference', model_name: diar.model, durationMs: ms });
         console.log(`[stage2] diarization: ${turns.length} turns, ${new Set(turns.map((t) => t.speaker)).size} speakers`);
@@ -163,10 +187,15 @@ async function processSource(entry, idx, total) {
       else { asd = res.results || []; console.log(`[stage3] visual ASD: ${asd.length} verified turns`); }
     } catch (err) { console.log(`[stage3] ASD error: ${err.message}`); }
 
-    // ── STAGE 4 — utterances with attribution + confidence ────────────────
+    // ── STAGE 4 — utterances: attribution + NATURAL-LANGUAGE speaker name ──
     const utterances = buildUtterances(words, turns);
     const floor = config.models.asd.confidenceFloor;
+    // Stable per-source index so unmatched speakers read "unidentified speaker 1",
+    // not "spk_0". Real names come from voice/face enrollment (model-gated).
+    const clusterIndex = new Map();
+    for (const lbl of new Set(turns.map((t) => t.speaker))) clusterIndex.set(lbl, clusterIndex.size + 1);
     const utterRows = [];
+    let namedCount = 0;
     for (const u of utterances) {
       let visualSpeaker = null, confidence = null, conflict = false;
       let method = u.audioSpeaker ? 'audio' : 'unresolved';
@@ -179,16 +208,25 @@ async function processSource(entry, idx, total) {
           conflict = !visualSpeaker && (hit.faces > 0); // faces present but none speaking → off-screen voice
         }
       }
-      // Conservative: anything not visually confirmed above the floor needs review.
-      const needsReview = !(visualSpeaker && confidence != null && confidence >= floor);
+      // Name the speaker. If diarization supplied a per-cluster embedding and we
+      // have enrollments, match it; otherwise a stable "unidentified speaker N".
+      let idMatch = null;
+      const emb = u.audioSpeaker ? clusterEmbeddings?.[u.audioSpeaker] : null;
+      if (emb && ENROLLMENTS.length) idMatch = matchIdentity(emb, ENROLLMENTS, { floor: 0.5, modality: 'voice' });
+      const spk = speakerLabel(idMatch, u.audioSpeaker ? clusterIndex.get(u.audioSpeaker) : null);
+      if (spk.identified) namedCount++;
+      // Needs review unless the name is visually confirmed above the floor.
+      const needsReview = !(visualSpeaker && confidence != null && confidence >= floor) && !spk.identified;
       const id = await insertUtterance(sourceId, {
         ...u, visualSpeaker, confidence, method, conflict, needsReview,
+        speakerName: spk.name, speakerConfidence: spk.confidence,
       });
-      utterRows.push({ id, ...u });
+      utterRows.push({ id, ...u, speakerName: spk.name });
     }
     if (utterances.length) {
       await logStage(sourceId, 'attribution', 'success', { determinism: 'model_inference', durationMs: 0, params: { asd: !!asd } });
-      console.log(`[stage4] ${utterances.length} utterances (${utterRows.filter((_, i) => true).length} stored; low-confidence flagged for review)`);
+      console.log(`[stage4] ${utterances.length} utterances; ${namedCount} name-matched, ` +
+        `${utterances.length - namedCount} unidentified (review/enrollment to-do)`);
     }
 
     // ── STAGE 5 — keyframes + perceptual signatures + OSINT location export ─
@@ -205,12 +243,22 @@ async function processSource(entry, idx, total) {
       // scratch dir (scratch is deleted) so the detective can frame-match them.
       const osintDir = path.join(config.osint.exportDir, desc.sha256.slice(0, 16));
       const locEvents = locationEvents(locationChanges);
+      let namedLoc = 0;
       for (let i = 0; i < locationChanges.length; i++) {
         const lc = locationChanges[i];
+        // Name the place from the knowledge base: "Defendant's home" vs unknown.
+        const locMatch = matchLocation(lc.ahash, KNOWN_LOCATIONS);
+        const loc = locationLabel(locMatch);
+        if (loc.identified) {
+          namedLoc++;
+          locEvents[i].detail = `at ${loc.name}`;
+          locEvents[i].confidence = loc.confidence;
+        }
         await insertEvent(sourceId, locEvents[i]);
         const exported = await exportOsintFrame(lc, osintDir, desc);
         await insertLocationOfInterest(sourceId, {
           start_sec: lc.timestamp, representative_frame: exported, ahash: lc.ahash,
+          location_name: locMatch?.name || null, location_confidence: locMatch?.confidence ?? null,
           recording_date: desc.recorded_at || null, exported_dir: osintDir,
         });
       }
@@ -218,7 +266,7 @@ async function processSource(entry, idx, total) {
         `${frames.length} keyframes, ${locationChanges.length} location-of-interest exported (${fr.seek_mode} seek)`,
         { actor: 'pipeline/stage5' });
       console.log(`[stage5] ${frames.length} keyframes, ${signatures.length} signatures, ` +
-        `${locationChanges.length} locations-of-interest exported for OSINT`);
+        `${locationChanges.length} locations-of-interest (${namedLoc} named from knowledge base) exported for OSINT`);
     } catch (err) { console.log(`[stage5] frame/signature error: ${err.message}`); }
 
     // ── STAGE 6 — embeddings for semantic search ──────────────────────────
@@ -255,6 +303,13 @@ async function main() {
 
   const root = process.argv[2] || config.localRoot;
   if (!root) { console.error('Usage: node src/ingest.js "<folder or drive to scan>"  (or set LOCAL_ROOT)'); process.exit(1); }
+
+  // Load the case knowledge base for natural-language naming.
+  KNOWN_LOCATIONS = await loadKnownLocations();
+  if (KNOWN_LOCATIONS.length) console.log(`[kb] ${KNOWN_LOCATIONS.length} known locations loaded (${KNOWN_LOCATIONS.map((l) => l.name).join(', ')})`);
+  // ENROLLMENTS (voice/face prints) are loaded by the native build from the DB;
+  // the JS prototype leaves them empty unless wired, so speakers read
+  // "unidentified speaker N" until enrollment + a voice/face model are present.
 
   console.log(`[scan] ${root}`);
   const videos = await local.listVideos(root);

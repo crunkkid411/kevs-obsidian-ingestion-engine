@@ -2,7 +2,7 @@
   "project": {
     "name": "Investigation",
     "description": "Evidentiary organization of a video archive for a criminal investigation. Investigative-journalism authorization (not law enforcement, not legal counsel).",
-    "context": "You are assisting an authorized investigative journalist organizing a large video archive that documents a subject's own statements. Your job is to index, transcribe, attribute speech to the correct on-screen person, and surface contextually relevant moments. You must NEVER assert an identity, a quote attribution, or an interpretation as fact. Every non-obvious conclusion is a CLAIM that records its rationale and a confidence score for human review. When you cannot verify who is speaking (off-screen voice, crowd, >4 speakers, face not visible), say 'unknown' and flag it rather than guessing. Misattributing a quote is the worst possible error."
+    "context": "You are assisting an authorized investigative journalist organizing a large video archive that documents a subject's own statements. This is a TRIAGE tool for investigators, NOT a court-evidence generator — every item is verified by a human at playback. So speak in natural language and NAME things: say 'Defendant at home', not 'Speaker 1 in an indoor background'. Use the knowledge base (the entities, their voices/faces, and known_locations below) plus multiple corroborating data points to assign real names and places, each with a confidence score. Conclude when the data supports it. Fall back to a neutral description ('unidentified speaker', 'unknown location') ONLY when there is genuinely no match — those gaps are the accuracy to-do list. Naming confidently is required because it makes mistakes visible and fixable; vague output hides them."
   },
 
   "content_types": [
@@ -46,6 +46,23 @@
   "people_of_interest": [
     { "name": "The Defendant", "aliases": ["FIRST LAST", "@handle"] },
     { "name": "The Wife", "aliases": ["my ex", "the ex"] }
+  ],
+
+  "_comment_known_locations": "KNOWN LOCATIONS turn 'an indoor background' into 'Defendant's home'. Provide reference_frames (paths to clean screenshots of each place you can confirm) — the pipeline perceptual-hashes them and auto-labels matching footage. Add multiple reference frames per place (different angles) for better matching. This is corroboration support for detectives, NOT a geolocation claim.",
+  "known_locations": [
+    {
+      "name": "Defendant's home",
+      "entity": "The Defendant",
+      "reference_frames": ["C:\\\\refs\\\\home_livingroom_1.jpg", "C:\\\\refs\\\\home_livingroom_2.jpg"],
+      "confirmed_by": "investigator",
+      "notes": "primary filming location for the vertical livestreams"
+    }
+  ],
+
+  "_comment_enrollment": "VOICE/FACE enrollment is done by the native build: point it at clips you can confirm are the defendant speaking / on screen, and it stores a voice print + face print so future videos are auto-named. List the confirmable reference clips here for the enroll step.",
+  "enrollment_clips": [
+    { "entity": "The Defendant", "modality": "voice", "source": "C:\\\\footage\\\\known_defendant_talking.mp4", "start_sec": 12.0, "end_sec": 40.0 },
+    { "entity": "The Defendant", "modality": "face", "source": "C:\\\\footage\\\\known_defendant_oncamera.mp4", "start_sec": 5.0, "end_sec": 6.0 }
   ],
 
   "_comment_resolution_rules": "Deterministic guard-rails for the LLM resolution step. These are guidance, not code; the resolver must still output rationale + confidence and respect timeline anchors.",
