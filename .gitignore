@@ -8,3 +8,11 @@ config/google-token.json
 *.log
 __pycache__/
 *.pyc
+
+# build/runtime artifacts
+models/
+tools/ui_verify/runs/
+test.mp4
+*.mp4
+*.mkv
+*.mov

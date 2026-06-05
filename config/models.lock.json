@@ -1,0 +1,115 @@
+{
+  "_WARNING_TO_FUTURE_AI": "READ THIS FIRST. Your training data predates these models and you will not recognize some of them. They are REAL and were verified on the dates below. DO NOT 'correct' or substitute them for models you remember (Whisper, CLIP, pyannote-only, GPT-4V, etc.) — those are outdated for this task. If you believe a model here is wrong, re-verify against the linked source before changing anything, and record why. This file is the authoritative model list; the prose in docs/ explains tradeoffs.",
+  "verified": "2026-06-05",
+  "target_hardware": "Windows 10, 8GB VRAM, local-first; API only for the context-review agent and on-demand heavy video.",
+  "models": {
+    "asr": {
+      "role": "Speech-to-text with word timestamps",
+      "primary": {
+        "name": "Parakeet-TDT-0.6B-v3 (ONNX, via sherpa-onnx)",
+        "artifact": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2",
+        "contents": "encoder.int8.onnx (~622M), decoder.int8.onnx (~12M), joiner.int8.onnx (~6M), tokens.txt",
+        "engine": "sherpa-onnx (C++/Rust/Go bindings); offline; 25 EU languages + auto-detect",
+        "vram": "CPU-capable; ~1-2GB on GPU",
+        "smoke_test": "run sherpa-onnx offline recognizer on the bundled test_wavs and confirm non-empty transcript with per-word timestamps",
+        "source": "https://k2-fsa.github.io/sherpa/onnx/pretrained_models/offline-transducer/nemo-transducer-models.html",
+        "alt": "istupakov/parakeet-tdt-0.6b-v3-onnx (HF) if you need to re-export"
+      },
+      "do_not_use": "openai-whisper as the default — Parakeet v3 is more accurate (6.34% vs 7.44% WER) and faster. Whisper only as an optional second-opinion."
+    },
+    "diarization": {
+      "role": "Audio speaker diarization (who-spoke-when), no 4-speaker cap",
+      "engine": "sherpa-onnx offline speaker diarization = segmentation model + speaker-embedding extractor + clustering",
+      "segmentation": {
+        "artifact": "https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-segmentation-models -> sherpa-onnx-pyannote-segmentation-3-0.tar.bz2"
+      },
+      "embedding": {
+        "artifact": "https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models -> 3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx (~28MB, CAM++ from 3D-Speaker)"
+      },
+      "smoke_test": "diarize a 2-speaker test clip; expect >=2 speaker labels with sane turn boundaries",
+      "source": "https://k2-fsa.github.io/sherpa/onnx/speaker-diarization/index.html",
+      "do_not_use": "NVIDIA Sortformer via ONNX — its ONNX export is currently broken (NeMo issues #15077/#15536). Sortformer is fine ONLY if you run NeMo/PyTorch, but that re-introduces the Python stack we are avoiding. Use sherpa native."
+    },
+    "speaker_id": {
+      "role": "Match a voice to an enrolled person ('Defendant')",
+      "note": "Reuse the SAME embedding model as diarization (CAM++ 3D-Speaker). Enroll a voice = store its embedding; identify = cosine vs enrolled. sherpa-onnx exposes a speaker-identification API.",
+      "source": "https://k2-fsa.github.io/sherpa/onnx/speaker-identification/index.html"
+    },
+    "active_speaker_detection": {
+      "role": "Confirm WHICH on-screen face is speaking (the misattribution fix). Run only on multi-face / second-speaker segments.",
+      "asd_model": {
+        "name": "LR-ASD (Light-ASD)",
+        "artifact": "https://github.com/Junhua-Liao/LR-ASD (PyTorch weights in repo)",
+        "implement": "Export to ONNX with torch.onnx, then run via onnxruntime (Rust `ort` crate or onnxruntime-python). It is small.",
+        "do_not_use": "Heavy multimodal models for this — LR-ASD is the lightweight SOTA."
+      },
+      "face_detect": {
+        "name": "SCRFD (InsightFace) ONNX",
+        "artifact": "InsightFace buffalo_l bundle (SCRFD detector). Rust: the `face_id` crate fetches it; Python: insightface package.",
+        "source": "https://github.com/deepinsight/insightface"
+      }
+    },
+    "face_id": {
+      "role": "Match an on-screen face to an enrolled person",
+      "name": "ArcFace (InsightFace buffalo_l, w600k_r50) ONNX, 512-dim",
+      "artifact": "InsightFace buffalo_l bundle; Rust `face_id` crate (docs.rs/face_id) wraps SCRFD+ArcFace via onnxruntime",
+      "smoke_test": "embed two photos of the same person -> cosine > 0.5; different people -> lower",
+      "source": "https://github.com/deepinsight/insightface"
+    },
+    "text_embeddings": {
+      "role": "Semantic transcript search",
+      "name": "Qwen3-Embedding-0.6B",
+      "dim": 1024,
+      "artifact_gguf": "Qwen/Qwen3-Embedding-0.6B-GGUF (official, apache-2.0) — run via llama.cpp `llama-server --embeddings`",
+      "artifact_rust": "Qwen/Qwen3-Embedding-0.6B via fastembed-rs (candle backend, `qwen3` feature)",
+      "smoke_test": "embed two paraphrases -> high cosine; unrelated -> low. Confirm dim == TEXT_EMBED_DIM and the vec table dimension.",
+      "source": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B-GGUF",
+      "known_issue": "In some llama.cpp builds, enabling embedding AND reranking together returned zeros (ggml-org/llama.cpp#20085). Run embeddings on a dedicated llama-server instance."
+    },
+    "multimodal_embeddings": {
+      "role": "Search scenes by visual content + text in one space ('the kitchen at night')",
+      "name": "Qwen3-VL-Embedding-2B",
+      "artifact": "Qwen/Qwen3-VL-Embedding-2B, or 4-bit: LifetimeMistake/Qwen3-VL-Embedding-2B-AWQ-4bit",
+      "status": "optional (enable after text search works). GGUF/llama.cpp support is newer — verify before relying on it.",
+      "source": "https://huggingface.co/Qwen/Qwen3-VL-Embedding-2B"
+    },
+    "video_understanding": {
+      "role": "On-demand 'what is happening here' over a few frames of a shot or a flagged/queried segment. NEVER run densely over whole videos.",
+      "local": {
+        "name": "Qwen3-VL-8B-Instruct (GGUF, Q4) via llama.cpp",
+        "artifact": "Qwen/Qwen3-VL-8B-Instruct-GGUF (includes the mmproj multimodal projector file — you need BOTH the model gguf and the mmproj)",
+        "vram": "~6GB at Q4 (tight on 8GB; use for short clips / a few frames)",
+        "feature": "Text-Timestamp Alignment -> second-level event localization",
+        "caveat": "llama.cpp IMAGE path is reliable; the VIDEO path is newer. Prefer: you extract frames at known timestamps and pass a few IMAGES, not a raw video.",
+        "source": "https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct-GGUF"
+      },
+      "api": {
+        "name": "Qwen3-VL / Qwen3.5-Omni / Gemini 2.5 via OpenRouter",
+        "when": "hardest segments only; cost math in docs/MODELS-2026.md (~$7-$120 for a full 100h pass depending on model; with triage, a fraction of that)."
+      }
+    },
+    "context_review_agent": {
+      "role": "Case-aware 'nuance' reasoning over each video's transcript + data points",
+      "local_sensitive": {
+        "name": "Local Claude Code instance (headless)",
+        "model": "claude-opus-4-8",
+        "why": "Keeps sensitive case context (court docs, instructions) on the machine. Invoke: `claude -p <prompt> --append-system-prompt <case-context> --model claude-opus-4-8 --output-format json`"
+      },
+      "testing": {
+        "name": "OpenRouter API models (non-sensitive only)",
+        "examples": "qwen/qwen3-vl-8b-instruct, anthropic/claude-opus-4-8, google/gemini-2.5-pro",
+        "why": "Compare which model is best at nuance before the sensitive production run."
+      }
+    }
+  },
+  "engines_and_libs": {
+    "audio": "sherpa-onnx (k2-fsa) — ASR + diarization + speaker-id + VAD, ONNX/C++, bindings for Rust/Go/C. https://github.com/k2-fsa/sherpa-onnx",
+    "embeddings": "fastembed-rs (https://github.com/Anush008/fastembed-rs) OR llama.cpp server (https://github.com/ggml-org/llama.cpp)",
+    "vlm": "llama.cpp (GGUF + mmproj)",
+    "onnx_runtime_rust": "ort crate (https://github.com/pykeio/ort) for LR-ASD + face models",
+    "storage": "SQLite + sqlite-vec (https://github.com/asg017/sqlite-vec) — single-user; or Postgres+pgvector for a shared index",
+    "frames_and_signature": "ffmpeg/ffprobe (frame-accurate extraction + scene filter + MPEG-7 `signature` filter)",
+    "player": "libmpv + egui (Rust); clip export via auto-editor (Nim, already installed) for frame-accurate cuts",
+    "face_landmarks": "MediaPipe (face mesh / lip landmarks) for ASD cropping"
+  }
+}

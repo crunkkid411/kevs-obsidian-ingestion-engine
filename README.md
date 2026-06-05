@@ -7,7 +7,11 @@
 > and pull up exact moments, with **chain of custody** and **audio-visual speaker
 > attribution**. It is built for an authorized investigative-journalism workflow.
 >
-> **Start here:**
+> **Setting this up?** Open **`CLAUDE.md`** then **`docs/BUILD.md`** — the
+> autonomous runbook. Drop a `test.mp4` in the repo root and tell Claude Code
+> "set this up." Exact model artifacts are pinned in **`config/models.lock.json`**.
+>
+> **Start here (reference):**
 > - **`docs/MODELS-2026.md`** — model research (June 2026): ASR, diarization,
 >   visual active-speaker detection, video understanding, embeddings — 8 GB-VRAM
 >   viability, API alternatives, cost math.
@@ -50,8 +54,8 @@
 >
 > ---
 >
-> The original generic engine is documented below and still available via
-> `npm run batch:legacy`.
+> The original generic engine has been moved to `legacy/` (archival only — ignore
+> it for the build). Its docs remain below for historical context.
 
 A generic, config-driven video content ingestion engine. Point it at a Dropbox folder, define your taxonomy, and it will:
 

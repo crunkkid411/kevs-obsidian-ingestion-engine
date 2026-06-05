@@ -281,7 +281,5 @@ system of record — Postgres is. You are not locked into Obsidian.
 | Stage orchestrator (deterministic auto-pipe + gated LLM) | **scaffold** — see `src/pipeline/` |
 | Semantic search CLI | **scaffold** |
 
-The legacy generic engine files (`src/transcribe`, `src/vision/frames.js`,
-`src/classify`, `src/markdown`, `src/sources/dropbox.js`, old `src/batch.js`)
-are left in place for reference but are superseded by the forensic pipeline for
-this use case.
+The legacy generic engine has been moved to `legacy/` (archival only — see
+`legacy/README.md`). Ignore it when building.
