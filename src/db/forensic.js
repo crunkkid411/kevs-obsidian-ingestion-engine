@@ -173,4 +173,37 @@ function vectorLiteral(v) {
   return Array.isArray(v) ? `[${v.join(',')}]` : v;
 }
 
+/** Insert a "20% nuance" event (second speaker, phone call, location change). */
+export async function insertEvent(sourceId, e) {
+  if (!pool) return null;
+  const r = await pool.query(
+    `INSERT INTO events (source_id, kind, start_sec, end_sec, start_frame, end_frame, confidence, detail, evidence, needs_review)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+    [sourceId, e.kind, e.start_sec, e.end_sec ?? null, e.start_frame ?? null, e.end_frame ?? null,
+     e.confidence ?? null, e.detail || null, e.evidence ? JSON.stringify(e.evidence) : null, true],
+  );
+  return r.rows[0].id;
+}
+
+/** Insert a frame perceptual-hash signature (cross-video fixture matching). */
+export async function insertFrameSignature(sourceId, s) {
+  if (!pool) return;
+  await pool.query(
+    `INSERT INTO frame_signatures (source_id, at_sec, at_frame, ahash, frame_path)
+     VALUES ($1,$2,$3,$4,$5)`,
+    [sourceId, s.timestamp ?? null, s.frame_index ?? null, s.ahash, s.path || null],
+  );
+}
+
+/** Insert a location-of-interest (OSINT handoff candidate). */
+export async function insertLocationOfInterest(sourceId, l) {
+  if (!pool) return;
+  await pool.query(
+    `INSERT INTO locations_of_interest (source_id, start_sec, end_sec, representative_frame, ahash, recording_date, exported_dir)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [sourceId, l.start_sec, l.end_sec ?? null, l.representative_frame || null, l.ahash || null,
+     l.recording_date || null, l.exported_dir || null],
+  );
+}
+
 export function getPool() { return pool; }

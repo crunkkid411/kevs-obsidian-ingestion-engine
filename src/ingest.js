@@ -21,7 +21,10 @@ import * as M from './adapters/models.js';
 import {
   connect, isIngested, registerSource, logCustody, logStage,
   insertWords, upsertSpeaker, insertUtterance, insertEmbedding,
+  insertEvent, insertFrameSignature, insertLocationOfInterest,
 } from './db/forensic.js';
+import { analyzeFrames as analyzeSignatures } from './analyze/signatures.js';
+import { speakerEvents, locationEvents } from './analyze/events.js';
 
 async function timed(fn) {
   const t = Date.now();
@@ -60,6 +63,31 @@ function buildUtterances(words, turns) {
   }
   if (cur) out.push(cur);
   return out;
+}
+
+/**
+ * Export a clean, full-resolution location frame + a provenance sidecar for the
+ * detective's OSINT frame-matching. We never assert WHERE it was filmed — we
+ * hand over the frame + exact source/time so they can match fixtures themselves.
+ */
+async function exportOsintFrame(lc, osintDir, desc) {
+  await fs.mkdir(osintDir, { recursive: true });
+  const base = `loc_${String(Math.round(lc.timestamp)).padStart(6, '0')}s_f${lc.frame_index}`;
+  const dest = path.join(osintDir, `${base}.jpg`);
+  await fs.copyFile(lc.path, dest);
+  const sidecar = {
+    source_file: desc.file_name,
+    source_path: desc.abs_path,
+    sha256: desc.sha256,
+    timestamp_sec: lc.timestamp,
+    frame_index: lc.frame_index,
+    fps_exact: desc.fps_num && desc.fps_den ? `${desc.fps_num}/${desc.fps_den}` : desc.fps,
+    recording_date: desc.recorded_at || null,
+    ahash: lc.ahash,
+    note: 'Candidate location frame for OSINT fixture matching. Not a geolocation conclusion.',
+  };
+  await fs.writeFile(path.join(osintDir, `${base}.json`), JSON.stringify(sidecar, null, 2));
+  return dest;
 }
 
 async function processSource(entry, idx, total) {
@@ -119,6 +147,14 @@ async function processSource(entry, idx, total) {
       }
     } catch (err) { if (!err.soft) console.log(`[stage2] diarization error: ${err.message}`); }
 
+    // ── STAGE 2b — "20% nuance" speaker events (second speaker / phone) ────
+    try {
+      const sev = speakerEvents(turns);
+      for (const e of sev) await insertEvent(sourceId, e);
+      if (sev.length) console.log(`[stage2b] events: ${sev.filter((e) => e.kind === 'phone_call').length} phone-call, ` +
+        `${sev.filter((e) => e.kind === 'second_speaker').length} second-speaker (flagged for review)`);
+    } catch (err) { console.log(`[stage2b] event error: ${err.message}`); }
+
     // ── STAGE 3 — visual active-speaker detection (misattribution fix) ─────
     let asd = null;
     try {
@@ -155,13 +191,35 @@ async function processSource(entry, idx, total) {
       console.log(`[stage4] ${utterances.length} utterances (${utterRows.filter((_, i) => true).length} stored; low-confidence flagged for review)`);
     }
 
-    // ── STAGE 5 — frame-accurate keyframes per shot (deterministic) ────────
+    // ── STAGE 5 — keyframes + perceptual signatures + OSINT location export ─
+    // Frame-accurate keyframes per shot -> aHash signatures -> detect location
+    // changes -> export clean full-res frames + metadata for detective OSINT.
     try {
       const framesDir = path.join(work, 'frames');
-      const [fr] = await timed(() => M.extractFrames(entry.path, framesDir, { scene: config.pipeline.sceneThreshold, maxFrames: 200 }));
-      await logCustody(sourceId, 'stage_run', `extracted ${fr.frames_extracted} keyframes (scene cuts, ${fr.seek_mode} seek)`, { actor: 'pipeline/stage5' });
-      console.log(`[stage5] ${fr.frames_extracted} frame-accurate keyframes`);
-    } catch (err) { console.log(`[stage5] frame extraction error: ${err.message}`); }
+      const [fr] = await timed(() => M.extractFrames(entry.path, framesDir, { scene: config.pipeline.sceneThreshold, maxFrames: 400 }));
+      const frames = fr.frames || [];
+      const { signatures, locationChanges } = await analyzeSignatures(frames, config.pipeline.locationChangeThreshold);
+      for (const s of signatures) await insertFrameSignature(sourceId, s);
+
+      // Location-of-interest export: persist representative frames OUTSIDE the
+      // scratch dir (scratch is deleted) so the detective can frame-match them.
+      const osintDir = path.join(config.osint.exportDir, desc.sha256.slice(0, 16));
+      const locEvents = locationEvents(locationChanges);
+      for (let i = 0; i < locationChanges.length; i++) {
+        const lc = locationChanges[i];
+        await insertEvent(sourceId, locEvents[i]);
+        const exported = await exportOsintFrame(lc, osintDir, desc);
+        await insertLocationOfInterest(sourceId, {
+          start_sec: lc.timestamp, representative_frame: exported, ahash: lc.ahash,
+          recording_date: desc.recorded_at || null, exported_dir: osintDir,
+        });
+      }
+      await logCustody(sourceId, 'stage_run',
+        `${frames.length} keyframes, ${locationChanges.length} location-of-interest exported (${fr.seek_mode} seek)`,
+        { actor: 'pipeline/stage5' });
+      console.log(`[stage5] ${frames.length} keyframes, ${signatures.length} signatures, ` +
+        `${locationChanges.length} locations-of-interest exported for OSINT`);
+    } catch (err) { console.log(`[stage5] frame/signature error: ${err.message}`); }
 
     // ── STAGE 6 — embeddings for semantic search ──────────────────────────
     try {

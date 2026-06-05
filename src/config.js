@@ -99,9 +99,19 @@ export const config = {
     // Frame extraction precision (deterministic). See scripts/extract_frames_precise.py
     sceneThreshold: parseFloat(process.env.SCENE_THRESHOLD || '0.4'),
     keyframesPerShot: parseInt(process.env.KEYFRAMES_PER_SHOT || '1'),
+    // Hamming distance (of 64-bit aHash) above which a shot is a new location.
+    locationChangeThreshold: parseInt(process.env.LOCATION_CHANGE_THRESHOLD || '18'),
     // Triage: only send segments to the VLM if flagged or queried (see docs).
     understandFlaggedOnly: (process.env.UNDERSTAND_FLAGGED_ONLY || 'true') === 'true',
   },
+
+  // ── OSINT handoff: exported location frames for the detective ────────────
+  osint: {
+    exportDir: process.env.OSINT_EXPORT_DIR || path.join(ROOT, 'osint-export'),
+  },
+
+  // Storage backend the NATIVE port targets (the JS prototype uses Postgres).
+  storage: process.env.STORAGE || 'sqlite',   // sqlite (recommended) | postgres
 
   // Scratch space for extracted audio/frames. Source files are NEVER written here.
   tempDir: process.env.TEMP_DIR || path.join(ROOT, 'tmp', 'work'),

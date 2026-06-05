@@ -228,6 +228,85 @@ CREATE TABLE IF NOT EXISTS inferences (
 CREATE INDEX IF NOT EXISTS idx_inferences_source ON inferences(source_id, kind);
 
 -- ───────────────────────────────────────────────────────────────────────────
+-- EVENTS  (the "20% nuance" — what makes a segment worth a human's time)
+-- Most footage is one person in one room; these mark the deviations:
+-- a second voice, a phone call, a location change, multiple faces on screen.
+-- ───────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS events (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_id     UUID REFERENCES sources(id) ON DELETE CASCADE,
+  kind          TEXT NOT NULL,                  -- second_speaker|phone_call|location_change|multi_face|speaker_change
+  start_sec     DOUBLE PRECISION NOT NULL,
+  end_sec       DOUBLE PRECISION,
+  start_frame   BIGINT,
+  end_frame     BIGINT,
+  confidence    DOUBLE PRECISION,
+  detail        TEXT,
+  evidence      JSONB,                          -- refs: which turns/frames/signatures
+  determinism   TEXT DEFAULT 'deterministic',
+  needs_review  BOOLEAN DEFAULT TRUE,
+  reviewed_by   TEXT,
+  reviewed_at   TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_events_source ON events(source_id, start_sec);
+CREATE INDEX IF NOT EXISTS idx_events_kind   ON events(kind);
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- LOCATIONS OF INTEREST  (for OSINT handoff — NOT geolocation conclusions)
+-- When the background/room changes, surface clean full-res frames + metadata so
+-- a detective can frame-match permanent fixtures against THEIR location DB.
+-- This tool corroborates; it never asserts where something was filmed.
+-- ───────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS locations_of_interest (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_id           UUID REFERENCES sources(id) ON DELETE CASCADE,
+  start_sec           DOUBLE PRECISION NOT NULL,
+  end_sec             DOUBLE PRECISION,
+  representative_frame TEXT,                     -- path to exported full-res frame
+  ahash               TEXT,                      -- perceptual hash (location grouping)
+  recording_date      TIMESTAMPTZ,               -- from source container metadata, if any
+  exported_dir        TEXT,                      -- OSINT export folder for this location
+  status              TEXT DEFAULT 'unreviewed', -- unreviewed|matched|dismissed
+  notes               TEXT,
+  created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_loi_source ON locations_of_interest(source_id);
+CREATE INDEX IF NOT EXISTS idx_loi_ahash  ON locations_of_interest(ahash);
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- FRAME SIGNATURES  (perceptual hashes for cross-video recurrence / matching)
+-- Lets the tool answer "this background recurs in these other videos" and
+-- supports the detective's fixture/scenery matching without leaving the archive.
+-- ───────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS frame_signatures (
+  id            BIGSERIAL PRIMARY KEY,
+  source_id     UUID REFERENCES sources(id) ON DELETE CASCADE,
+  at_sec        DOUBLE PRECISION,
+  at_frame      BIGINT,
+  ahash         TEXT,                            -- 64-bit average hash (hex)
+  frame_path    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_fsig_source ON frame_signatures(source_id, at_sec);
+CREATE INDEX IF NOT EXISTS idx_fsig_ahash  ON frame_signatures(ahash);
+
+-- ───────────────────────────────────────────────────────────────────────────
+-- CLIPS  (human-created evidence clips from the review/player UI)
+-- ───────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS clips (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_id     UUID REFERENCES sources(id) ON DELETE CASCADE,
+  in_sec        DOUBLE PRECISION NOT NULL,
+  out_sec       DOUBLE PRECISION NOT NULL,
+  label         TEXT,
+  note          TEXT,
+  exported_path TEXT,
+  created_by    TEXT,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_clips_source ON clips(source_id);
+
+-- ───────────────────────────────────────────────────────────────────────────
 -- PROCESSING LOG  (per-stage run record for reproducibility)
 -- ───────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS processing_log (

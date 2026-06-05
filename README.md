@@ -8,12 +8,23 @@
 > attribution**. It is built for an authorized investigative-journalism workflow.
 >
 > **Start here:**
-> - **`docs/MODELS-2026.md`** — the model research (June 2026): ASR, diarization,
->   visual active-speaker detection, video understanding, embeddings — with what
->   fits in 8 GB VRAM, API alternatives, and cost math.
-> - **`docs/ARCHITECTURE.md`** — the forensic pipeline, the data model, and the
->   chain-of-custody / provenance design.
-> - **`docs/SETUP-WINDOWS.md`** — plain-language setup for a Windows 10 / 8 GB box.
+> - **`docs/MODELS-2026.md`** — model research (June 2026): ASR, diarization,
+>   visual active-speaker detection, video understanding, embeddings — 8 GB-VRAM
+>   viability, API alternatives, cost math.
+> - **`docs/NATIVE-STACK.md`** — the **native** (C/Rust/Go/ONNX, no Python/web)
+>   runtime stack: sherpa-onnx, sqlite-vec, fastembed-rs, llama.cpp, libmpv+egui,
+>   ffmpeg signature, auto-editor.
+> - **`docs/HANDOFF.md`** — ordered build plan (milestones + acceptance tests) for
+>   a local Claude Code instance to implement the native tool.
+> - **`docs/ARCHITECTURE.md`** — pipeline, data model, chain-of-custody/provenance.
+> - **`docs/SETUP-WINDOWS.md`** — plain-language Windows 10 / 8 GB setup.
+>
+> **Beyond transcription/search, the pipeline flags the "20% nuance"** — a second
+> voice, a phone call, a room/location change — as reviewable `events`, and
+> **exports clean location frames + provenance** for detective OSINT fixture
+> matching (it corroborates; it never concludes *where* or *who*). A native
+> **libmpv player** with frame-accurate stepping and **auto-editor** clip export
+> is the investigator's review surface.
 >
 > **Quickstart:**
 > ```bat
