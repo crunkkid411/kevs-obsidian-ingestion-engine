@@ -1,3 +1,22 @@
-openai-whisper>=20240930
+# Python deps for the forensic pipeline.
+# Install on the WINDOWS GPU machine (these are the runtime model deps; the
+# deterministic STAGE 0 only needs ffmpeg + ffprobe, no Python).
+#
+# Tip: install PyTorch with CUDA FIRST from https://pytorch.org/get-started/locally/
+# so the GPU is used, then the packages below.
+
+# ── ASR + diarization (NVIDIA NeMo) ─────────────────────────────────────
+# Parakeet-TDT-0.6B-v3 and Sortformer 4spk both run via NeMo.
+nemo_toolkit[asr]>=2.0.0
+# (lighter alternative to NeMo for ASR+Sortformer: build parakeet.cpp instead)
+
+# ── Embeddings (Qwen3-Embedding) ────────────────────────────────────────
+sentence-transformers>=3.0.0
+
+# ── Visual active-speaker detection (wire LR-ASD; see scripts/asd_lr_asd.py)
+mediapipe>=0.10.18
 opencv-python-headless>=4.10.0
-numpy>=2.0.0
+numpy>=1.26.0
+
+# ── (legacy) local Whisper fallback, if ASR_BACKEND=whisper ─────────────
+# openai-whisper>=20240930

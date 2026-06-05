@@ -1,5 +1,42 @@
 # Kev's Obsidian Ingestion Engine
 
+> ## 🔬 Forensic mode (this fork)
+>
+> This branch refactors the engine for **evidentiary video work** — organizing a
+> large local archive (e.g. 500 GB / 100+ hours) so you can search it by meaning
+> and pull up exact moments, with **chain of custody** and **audio-visual speaker
+> attribution**. It is built for an authorized investigative-journalism workflow.
+>
+> **Start here:**
+> - **`docs/MODELS-2026.md`** — the model research (June 2026): ASR, diarization,
+>   visual active-speaker detection, video understanding, embeddings — with what
+>   fits in 8 GB VRAM, API alternatives, and cost math.
+> - **`docs/ARCHITECTURE.md`** — the forensic pipeline, the data model, and the
+>   chain-of-custody / provenance design.
+> - **`docs/SETUP-WINDOWS.md`** — plain-language setup for a Windows 10 / 8 GB box.
+>
+> **Quickstart:**
+> ```bat
+> npm install
+> copy .env.example .env          REM set LOCAL_ROOT + DATABASE_URL
+> npm run ingest "D:\footage"     REM hash + probe + register + frame-accurate keyframes
+> npm run search "every time he mentions his wife" --expand
+> ```
+> STAGE 0 (intake) runs with only FFmpeg + Postgres. The model stages
+> (Parakeet ASR, Sortformer diarization, LR-ASD visual verification, Qwen3
+> embeddings) are wired in `.env` and enabled one at a time on the GPU machine.
+> **Recommended stack:** Parakeet-TDT-0.6B-v3 → Sortformer-4spk → LR-ASD+MediaPipe
+> → Qwen3-Embedding (+ Qwen3-VL only on flagged/queried segments).
+>
+> ⚠️ The model integrations were **not** executed in the environment where this
+> code was written (no GPU / no footage there) — validate each stage locally.
+> Source files are treated as **read-only**; the pipeline never deletes them.
+>
+> ---
+>
+> The original generic engine is documented below and still available via
+> `npm run batch:legacy`.
+
 A generic, config-driven video content ingestion engine. Point it at a Dropbox folder, define your taxonomy, and it will:
 
 1. **Download** videos from Dropbox (Google Drive support optional)

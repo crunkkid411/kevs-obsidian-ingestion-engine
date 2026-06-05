@@ -1,0 +1,60 @@
+{
+  "project": {
+    "name": "Investigation",
+    "description": "Evidentiary organization of a video archive for a criminal investigation. Investigative-journalism authorization (not law enforcement, not legal counsel).",
+    "context": "You are assisting an authorized investigative journalist organizing a large video archive that documents a subject's own statements. Your job is to index, transcribe, attribute speech to the correct on-screen person, and surface contextually relevant moments. You must NEVER assert an identity, a quote attribution, or an interpretation as fact. Every non-obvious conclusion is a CLAIM that records its rationale and a confidence score for human review. When you cannot verify who is speaking (off-screen voice, crowd, >4 speakers, face not visible), say 'unknown' and flag it rather than guessing. Misattributing a quote is the worst possible error."
+  },
+
+  "content_types": [
+    "livestream", "short", "vlog", "clip", "interview", "phone-call", "screen-recording", "b-roll", "other"
+  ],
+
+  "topic_areas": [
+    "self-reference", "references-to-others", "timeline-statement", "admission", "threat-or-intimidation", "location-statement", "relationship", "finances", "travel", "other"
+  ],
+
+  "genders": ["male", "female", "mixed", "unknown"],
+
+  "locations": ["indoor-home", "indoor-other", "vehicle", "outdoor", "unknown"],
+
+  "tones": ["calm", "agitated", "joking", "boasting", "threatening", "emotional", "neutral"],
+
+  "production_qualities": ["livestream-vertical", "vlog-horizontal", "short-vertical", "screen-capture", "unknown"],
+
+  "_comment_entities": "ENTITIES power oblique-reference resolution. Add the real people, their explicit aliases, the audience nicknames / inside-jokes the subject uses for them, physical/contextual descriptions, and TIMELINE ANCHORS the resolver can reason over (e.g. a separation date lets the system link 'my ex, it's been 4 months' in a video posted months later to the right person). Each resolved link is stored as a reviewable claim, never a fact.",
+  "entities": [
+    {
+      "canonical_name": "The Defendant",
+      "entity_type": "person",
+      "aliases": ["FIRST LAST", "@handle"],
+      "nicknames": [],
+      "descriptions": ["primary subject / channel owner; usually the on-screen speaker in vertical livestreams"],
+      "timeline_anchors": []
+    },
+    {
+      "canonical_name": "The Wife",
+      "entity_type": "person",
+      "aliases": ["FIRST LAST"],
+      "nicknames": ["my ex", "the ex", "you-know-who", "ADD audience inside-jokes here"],
+      "descriptions": ["spouse / former spouse of the defendant"],
+      "timeline_anchors": [
+        { "event": "separation/breakup", "date": "YYYY-MM-DD", "note": "lets the resolver link 'it's been ~N months' style references" }
+      ]
+    }
+  ],
+
+  "people_of_interest": [
+    { "name": "The Defendant", "aliases": ["FIRST LAST", "@handle"] },
+    { "name": "The Wife", "aliases": ["my ex", "the ex"] }
+  ],
+
+  "_comment_resolution_rules": "Deterministic guard-rails for the LLM resolution step. These are guidance, not code; the resolver must still output rationale + confidence and respect timeline anchors.",
+  "resolution_rules": [
+    "Only propose an entity link when the surrounding context (timeline, prior aliases, who is on screen) supports it; otherwise leave it unresolved.",
+    "A reference like 'my ex' / 'it's been N months' should be checked against entity timeline_anchors before linking.",
+    "Never attribute a quote to a named person unless the on-screen active speaker was visually confirmed, or the audio speaker was already bound to that identity earlier in the same source.",
+    "Prefer 'unknown' + flag over a low-confidence guess."
+  ],
+
+  "additional_instructions": "Treat every video as potential evidence: do not summarize away detail, preserve exact wording in quotes, keep timestamps frame-accurate, and record uncertainty explicitly."
+}

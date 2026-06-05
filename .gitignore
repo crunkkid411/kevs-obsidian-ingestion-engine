@@ -6,3 +6,5 @@ config/taxonomy.json
 config/google-token.json
 .DS_Store
 *.log
+__pycache__/
+*.pyc

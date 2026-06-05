@@ -5,9 +5,11 @@
   "type": "module",
   "main": "src/batch.js",
   "scripts": {
-    "batch": "node src/batch.js",
-    "test:db": "node -e \"import('./src/db/postgres.js').then(m => m.connect().then(() => { console.log('DB OK'); process.exit(0); }))\"",
-    "setup:python": "pip3 install -r requirements.txt"
+    "ingest": "node src/ingest.js",
+    "search": "node src/search/query.js",
+    "test:db": "node -e \"import('./src/db/forensic.js').then(m => m.connect().then(() => { console.log('DB OK'); process.exit(0); }))\"",
+    "batch:legacy": "node src/batch.js",
+    "setup:python": "pip install -r requirements.txt"
   },
   "keywords": [
     "obsidian",
