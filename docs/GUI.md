@@ -1,35 +1,59 @@
 # Investigator GUI — design & UX spec
 
+> **STOP — read before you "improve" this.** If you are a fresh Claude instance,
+> you will instinctively want to (a) make this a web app and (b) verify it with
+> Playwright/browser automation, because that feels easier. **Both are forbidden
+> here.** The user has shipped many video apps; browser video stacks fail for this
+> frame-accurate, multi-clip work. This decision is final — do not relitigate it,
+> do not "just prototype it in web first." Build NATIVE and verify by SCREENSHOT.
+> Exactly how to tool yourself is spelled out below and in BUILD.md Phase 6 — you
+> do **not** need to research it.
+
 The goal: **easy, obvious use for a non-technical investigator.** Type what you're
 looking for in plain language; a list of matching quotes/moments appears on the
 left; click one and the video on the right jumps there and plays; clip what
 matters; queue several and stitch them — never touching the original file.
 
-## Tech decision: a LOCAL web app (engine stays native)
+## Exactly how to tool yourself (do not research this — just do it)
 
-The investigator UI is a **local web app** (served on `127.0.0.1`, opened in a
-browser or a thin webview). The heavy compute — ASR, diarization, embeddings,
-VLM, vector search — stays **native** (sherpa-onnx, llama.cpp, sqlite-vec). Only
-the thin UI shell is web.
+1. **GUI:** Rust. `cargo new` a binary; deps: `eframe`/`egui` (UI) + `libmpv2`
+   (frame-accurate video; alt bindings: `libmpv`/`egui-video`/the `mpv` crate) +
+   `rusqlite` + `sqlite-vec`. (Qt + libmpv in C++ is the only acceptable
+   alternative.) mpv must be installed (`winget install mpv` / bundle libmpv).
+2. **Mouse/keyboard/screenshot control for verification:** add the **Windows-MCP**
+   server to your Claude Code session, e.g. `claude mcp add windows-mcp -- <its
+   launch command from github.com/CursorTouch/Windows-MCP>`. That gives you tools
+   to screenshot, move/click the mouse, and type. (Alt: `claude-did-this/MCPControl`,
+   or `computer-use-mcp` for pure-Win32/Rust.)
+3. **Vision:** you read the screenshots yourself — you already have vision. For
+   precise click coordinates on a control, optionally run **ShowUI-2B**
+   (github.com/showlab/ShowUI): screenshot + instruction → `CLICK(x,y)`.
+4. **Wrap it in a skill** `.claude/skills/ui-verify` so the screenshot→act→verify
+   loop is reusable across the Phase-6 scenarios.
 
-Why this, not native egui (revised after research):
-- **The autonomous build can verify itself reliably.** Browser automation
-  (Playwright MCP / browser-harness, accessibility-tree targeting) is mature and
-  dependable. A native immediate-mode egui canvas exposes almost no accessibility
-  tree, so even Windows-MCP / pywinauto can't target its controls — you're left
-  with slow, brittle screenshot-vision. For "test its own work with real clicks,"
-  a web UI is the right call. (Sources in `docs/MODELS-2026.md` references.)
-- **Easy + obvious for the human**, cross-platform, trivial to style.
-- **Negligible bloat**: one small local server + the OS browser/webview. The 8GB
-  VRAM is spent on models, not the UI.
-- Native shells remain an option later: **Tauri** (Rust backend + system webview)
-  packages the exact same web UI as a desktop app; libmpv+egui is the fully-native
-  fallback if ever needed. Default to the plain localhost web app for build/verify
-  simplicity.
+If any exact command/crate has drifted by your build date, confirm it from the
+linked repo — but **do not change the native + screenshot-verification approach.**
 
-Stack: a small **Rust (axum) or Go** backend exposing a localhost JSON API over
-the SQLite/sqlite-vec DB + the query agent + clip/stitch (shells to `auto-editor`).
-Frontend: plain HTML/CSS/JS (or a light framework) — no heavy SPA needed.
+## Tech: NATIVE desktop app (no web — web is rejected for video)
+
+The investigator UI is a **native desktop app**. Web is explicitly **not** used:
+browser video stacks introduce too many problems for this kind of
+frame-accurate, multi-clip review work. The whole system is native anyway
+(sherpa-onnx, llama.cpp, sqlite-vec).
+
+Stack:
+- **Video engine: libmpv (mpv)** — the gold standard for **frame-accurate**
+  embedded playback and fast seeking; battle-tested in real players. This is what
+  makes "jump to a quote and play that exact segment" reliable.
+- **Shell/UI: Rust `egui` + libmpv** (primary; matches the native stack), or
+  **Qt + libmpv** (equally valid, also native) if preferred. Keep it simple — a
+  list, a video pane, a few buttons. "Stupidly simple but solid" beats fancy.
+- **Data:** the UI talks directly to the SQLite/sqlite-vec DB and the query agent
+  in-process (or over a tiny local IPC) — no HTTP server, no browser.
+- **Clipping:** shells to **`auto-editor`** for frame-accurate cuts.
+
+Verification is screenshot-based (Claude's vision) + Win32 control — see the last
+section; that is exactly why native is fine here.
 
 ## Layout (matches the requested design)
 
@@ -133,14 +157,13 @@ backend; for testing, an API model.
 - Exact in/out come from the DB timestamps (produced by frame-accurate extraction),
   so the *output* clip is frame-accurate regardless of the preview player.
 
-## Frame accuracy in the preview (honest note)
+## Frame accuracy
 
-HTML5 `<video>` seeking is best-effort, not guaranteed frame-exact — fine for
-"jump here and play." Where frame accuracy actually matters — the **exported
-clip** — it comes from auto-editor cutting at exact DB timestamps, not from the
-preview. If true in-UI frame-stepping is wanted, implement the frame-step buttons
-with the **WebCodecs API** (real frame accuracy in the browser); otherwise the
-`,`/`.` buttons nudge by `1/fps` seconds, which is close enough for review.
+libmpv is natively frame-accurate: exact seeks and true frame-step (`,`/`.` map
+to mpv `frame-back-step` / `frame-step`). The exported clip is also frame-accurate
+(auto-editor cuts at exact DB timestamps). So both the preview and the output are
+frame-exact — which is the whole reason for going native with mpv instead of a
+browser video element.
 
 ## How the investigator uses it (the whole loop)
 
@@ -154,14 +177,29 @@ with the **WebCodecs API** (real frame accuracy in the browser); otherwise the
 
 No terminal, no query syntax, no touching the originals.
 
-## Build & self-verification method (corrected)
+## Self-verification — screenshot + vision + Win32 (MANDATORY)
 
-- **Build** the UI as the local web app above.
-- **Self-verify (BUILD.md Phase 6) with browser automation**, not pyautogui:
-  **Playwright MCP** (or browser-harness) drives a real browser against the local
-  URL — accessibility-tree targeting, reliable clicks/typing, screenshots, and the
-  agent fixes its own failures from what it sees. This is why the UI is web.
-- *If* a fully-native shell is ever required, the verification fallback is
-  **Windows-MCP + pywinauto (UI Automation)** — still far better than coordinate-
-  based pyautogui — but expect weak control over an egui canvas, which is the
-  reason the default is web.
+The app is verified by **driving it like a human and reading the screen with
+Claude's vision** — not by unit tests alone, and not via a browser. This is a
+required part of the build (BUILD.md Phase 6).
+
+Concrete, current tooling (verified 2026-06):
+- **Control + screenshots: Windows-MCP** (CursorTouch/Windows-MCP) — an MCP server
+  for Windows computer use (mouse, keyboard, screenshots, window management),
+  widely used with Claude. Wire it as an MCP server for the build's Claude Code
+  instance. Alternative: **computer-use-mcp** (direct Win32 `SendInput` /
+  `IUIAutomation` / `DXGI` in Rust, no Python), or Anthropic's computer-use tool.
+- **Vision: Claude Code reads the screenshots directly** (it has vision). The loop
+  is: screenshot the app window → analyze what's on screen → issue the next
+  `CLICK(x,y)` / `TYPE(text)` / key via Windows-MCP → screenshot again → verify the
+  expected change. Save screenshots to `tools/ui_verify/runs/` for the record.
+- **Grounding helper (optional): ShowUI-2B** (showlab/ShowUI) — a small VLA that
+  maps a screenshot + instruction to a precise `CLICK(x,y)`; runs on CPU/3090. Use
+  it when Claude needs exact pixel coordinates for a control. https://github.com/showlab/ShowUI
+- The build agent should **find or create a Claude Code skill** (e.g.
+  `.claude/skills/ui-verify`) that wraps this screenshot→decide→act→screenshot loop
+  so it's reusable across scenarios.
+
+When a scenario fails, the agent diagnoses from the **screenshot** (+ the app's log
+file), fixes the code, rebuilds, and re-runs — it never asks the user to read or
+paste an error. See BUILD.md Phase 6 for the exact acceptance scenarios.

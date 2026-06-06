@@ -140,22 +140,21 @@ precision if time allows. See `docs/GUI.md` → "Natural-language search".
 months" utterance; "phone calls at his home" filters to `phone_call` events at the
 matched location — each hit with source + timestamp + speaker + flags.
 
-### M7 — Investigator GUI — a LOCAL WEB APP (the deliverable)
-Full spec in `docs/GUI.md` (read it). Rust/axum or Go backend serving a localhost
-JSON API over the DB + query agent + clip/stitch; plain HTML/CSS/JS frontend; dark
-neon design. **Not native egui** — a web UI so the autonomous build can self-verify
-with browser automation (see BUILD.md Phase 6 + GUI.md rationale).
+### M7 — Investigator GUI — NATIVE app (the deliverable)
+Full spec in `docs/GUI.md` (read it). **Native**: Rust `egui` + **libmpv** (or
+Qt + libmpv) — frame-accurate mpv video, talks to the DB + query agent in-process;
+dark neon design. **No web** (browser video stacks are unreliable for this).
 - Full-width NL search box → query agent (M6).
 - Left ~50%: results column (quote, timestamp, speaker, flags, file, location);
-  click a row → player seeks + plays that segment; fast switching.
-- Right ~50%: HTML5 video player (WebCodecs for true frame-step if wanted),
+  click a row → mpv seeks + plays that segment; fast switching.
+- Right ~50%: libmpv video pane with frame-accurate step (`,`/`.`),
   **Clip this**, **+ Queue**, queue list, **Stitch ⬇** (sequential concat). Clips
   cut by **`auto-editor`** from exact DB timestamps; the original is never touched.
 - Review actions (confirm/reject/set identity) writing the review fields; "Open
   OSINT folder" for a location.
-**Accept:** a non-technical user, in a browser at the local URL, searches in plain
-language → clicks a quote → it plays → clips/queues/stitches → reviews — no
-terminal; and a re-hash proves the source files are unchanged.
+**Accept (via screenshot verification, BUILD.md Phase 6):** a non-technical user
+searches in plain language → clicks a quote → it plays → clips/queues/stitches →
+reviews — no terminal; a re-hash proves the source files are unchanged.
 
 ### M8 — On-demand understanding (optional)
 Wire `VIDEO_BACKEND` to llama.cpp (local Qwen3-VL on extracted frames) and/or

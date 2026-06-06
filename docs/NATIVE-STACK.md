@@ -32,8 +32,8 @@ with native bindings. The JS pipeline in this repo is a **reference/prototype**
 | **Frame fingerprint / location matching** | **ffmpeg** (`signature` filter) + 64-bit aHash | native CLI / Rust | — | MPEG-7 video signature is Hamming-comparable; aHash for room-change. ([ffmpeg signature](https://ffmpeg.org/ffmpeg-filters.html#signature)) |
 | **Frame-accurate cut/clip** | **auto-editor** (Nim) — you have it | CLI | — | more precise cutting than raw ffmpeg; drive it from the player for evidence clips |
 | **Storage + vector search** | **SQLite + sqlite-vec** | C extension; Rust `rusqlite` / Go | — | in-process, no server. Brute-force vec search is ms-range at this scale. ([sqlite-vec](https://github.com/asg017/sqlite-vec)) |
-| **Investigator GUI** | **local web app** (Rust/axum or Go backend + HTML/CSS/JS) | Rust/Go + web | — | localhost UI over the DB + query agent; HTML5 video (WebCodecs for frame-step); clip/stitch via auto-editor. **Web (not native egui) so the build self-verifies via browser automation** — see `docs/GUI.md`. Native alt: Tauri / libmpv+egui. |
-| **UI self-verification** | **Playwright MCP** / browser-harness | — | — | drives the local web UI for BUILD.md Phase 6. Native fallback: Windows-MCP + pywinauto (UIA), not pyautogui. |
+| **Investigator GUI** | **native: `egui` + `libmpv`** (or Qt + libmpv) | Rust (or C++/Qt) | — | frame-accurate mpv video; talks to the DB + query agent in-process; clip/stitch via auto-editor. **No web** (browser video stacks are unreliable for this). See `docs/GUI.md`. |
+| **UI self-verification** | **screenshot + Claude vision + Win32** | Windows-MCP / computer-use-mcp | ShowUI-2B (grounding, optional) | drive the real app, read the screen, click/type, verify, fix own failures (BUILD.md Phase 6). |
 
 ## Why these
 

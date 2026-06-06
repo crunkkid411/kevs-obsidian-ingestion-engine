@@ -18,15 +18,22 @@ architecture.
    system. Do not build, run, or "fix" it.
 3. **The source video is evidence. Never modify/delete `test.mp4` or any source.**
    Write only to `tmp/`, `osint-export/`, the database, and build artifacts.
-4. **Use SUBAGENTS to keep context focused.** Spawn one subagent per phase/stage
+4. **GUI is NATIVE; verify it by SCREENSHOT. This is final — do not relitigate.**
+   You will instinctively want a web UI + Playwright. **Forbidden** (the user has
+   tried web video extensively and rejected it). Build Rust `egui` + `libmpv`
+   (Phase 5), and verify by driving the real app and reading screenshots with your
+   vision via the **Windows-MCP** server you add to yourself (Phase 6 has the exact
+   commands). You do NOT need to research this — `docs/GUI.md` tells you how to tool
+   yourself.
+5. **Use SUBAGENTS to keep context focused.** Spawn one subagent per phase/stage
    below; have it do the work, run its acceptance test, and report back a short
    result. Don't carry every stage's detail in your own context.
-5. **Test your own work, and don't ask the user to paste errors.** Read logs and
+6. **Test your own work, and don't ask the user to paste errors.** Read logs and
    command output yourself. The user will not babysit this. When a step fails,
    diagnose from the output and fix it.
-6. **If a Claude Code skill would help a repeatable sub-task, create it** under
+7. **If a Claude Code skill would help a repeatable sub-task, create it** under
    `.claude/skills/` (e.g. a `model-acquire` skill, a `stage-verify` skill, a
-   `ui-drive` skill). Reuse across phases.
+   `ui-verify` skill). Reuse across phases.
 
 ## What already exists (reuse it; don't rewrite)
 
@@ -49,9 +56,9 @@ runs overnight, and the investigator searches in plain language, sees flagged
 "20% nuance" on a timeline, jumps to the exact frame, confirms/corrects, and
 exports clips — with a provenance trail behind every item. Storage = SQLite +
 sqlite-vec (no server). Audio = sherpa-onnx. Embeddings = fastembed-rs or
-llama.cpp. VLM = llama.cpp (on-demand). GUI = a **local web app** with a
-natural-language query agent and auto-editor clip/stitch (see `docs/GUI.md`).
-See `docs/NATIVE-STACK.md` and `docs/HANDOFF.md` (milestones
+llama.cpp. VLM = llama.cpp (on-demand). GUI = a **native desktop app**
+(egui + libmpv) with a natural-language query agent and auto-editor clip/stitch
+(see `docs/GUI.md`). See `docs/NATIVE-STACK.md` and `docs/HANDOFF.md` (milestones
 M1–M8, M5.5, M5.7) for the module breakdown — this runbook is the execution order.
 
 ---
@@ -118,56 +125,57 @@ stage by stage (see `src/ingest.js`). After each, query the DB to verify rows.
   each flagged unreviewed with rationale + confidence + prompt_hash.
 
 ## PHASE 5 — Build the investigator GUI (subagent; the deliverable)
-Build the **local web app** specified in `docs/GUI.md` (Rust/axum or Go backend
-serving a localhost JSON API over the DB + the query agent + clip/stitch via
-`auto-editor`; plain HTML/CSS/JS frontend). The heavy compute stays native; only
-this thin UI shell is web (rationale + the browser-automation verification benefit
-are in `docs/GUI.md`). Minimum:
-- Full-width **natural-language search box** → the **query agent** endpoint
+Build the **native desktop app** specified in `docs/GUI.md`: Rust `egui` +
+**libmpv** (or Qt + libmpv) — frame-accurate mpv video, talking to the
+SQLite/sqlite-vec DB + the query agent in-process. **No web** (browser video
+stacks are unreliable for this; the user has tried them). Keep it simple. Minimum:
+- Full-width **natural-language search box** → the **query agent**
   (semantic + alias expansion + optional LLM intent-parse; extend
   `src/search/query.js`). Returns ranked segments with file/timestamp/speaker/
   location/flags/confidence + matching context annotations.
 - **Left column (~50%):** scrollable results (quote, timestamp, speaker, flags,
-  file, location). Clicking a row **seeks the player and plays that segment**;
+  file, location). Clicking a row **seeks libmpv and plays that segment**;
   switching rows switches fast.
-- **Right (~50%):** video player (part of the screen), transport, **"Clip this"**,
-  **"+ Queue"**, the **queue list**, and **"Stitch ⬇"** (sequential concat).
-  Clips cut with `auto-editor` from exact DB timestamps → frame-accurate output;
-  the original is never modified.
+- **Right (~50%):** libmpv video pane (part of the screen), transport with
+  frame-accurate step (`,`/`.` → mpv `frame-back-step`/`frame-step`),
+  **"Clip this"**, **"+ Queue"**, the **queue list**, and **"Stitch ⬇"**
+  (sequential concat). Clips cut with `auto-editor` from exact DB timestamps →
+  frame-accurate output; the original is never modified.
 - **Review actions** (confirm/reject/set identity) writing the review fields.
-- Dark neon design per `docs/GUI.md` (semantic colors; calm, obvious).
-- **Acceptance:** the app launches at a localhost URL, loads `test.mp4`'s index,
-  and a human (or the Phase 6 harness) can search → click a result → it plays →
-  Clip / Queue / Stitch → review — with no terminal use.
+- Dark neon design per `docs/GUI.md` (semantic colors; calm, obvious). Write the
+  app's events to a log file so Phase 6 can read failures.
+- **Acceptance:** the app launches, loads `test.mp4`'s index, and a human (or the
+  Phase 6 screenshot harness) can search → click a result → it plays → Clip /
+  Queue / Stitch → review — with no terminal use.
 
-## PHASE 6 — Self-verification with real UI interaction (REQUIRED)
-Do not declare done from unit tests alone. Drive the actual UI like a user and
-watch what happens.
+## PHASE 6 — Self-verification by SCREENSHOT (REQUIRED — non-negotiable)
+Do not declare done from unit tests alone. **Drive the real app and verify by
+SCREENSHOT using Claude's vision.** This is mandatory.
 
-- **Because the UI is a local web app, verify with browser automation** —
-  **Playwright MCP** (preferred for Claude Code) or an equivalent browser-harness
-  — driving a real browser at the local URL. This gives reliable accessibility-tree
-  targeting, clicks/typing, screenshots, and DOM assertions. Spawn a SEPARATE
-  Claude Code instance (or a subagent driving the harness in a see→act→verify
-  loop). Capture screenshots + logs to `tools/ui_verify/runs/`.
+- **Control + capture:** wire **Windows-MCP** (CursorTouch/Windows-MCP) as an MCP
+  server for your Claude Code instance — it does mouse, keyboard, and screenshots
+  on Windows. (Alternatives: `computer-use-mcp` = direct Win32 SendInput in Rust,
+  no Python; or Anthropic's computer-use tool.) **Find or create a Claude Code
+  skill** `.claude/skills/ui-verify` that wraps the loop.
+- **Vision:** YOU read the screenshots (you have vision). The loop per step:
+  screenshot the app window → look at it → decide the next action → issue
+  `CLICK(x,y)` / `TYPE(text)` / keypress via Windows-MCP → screenshot again →
+  confirm the expected change. Save every screenshot to `tools/ui_verify/runs/`.
+  If you need exact pixel coordinates for a control, use **ShowUI-2B** (a small
+  screenshot→CLICK grounding model) as a helper.
 - Scenarios to pass: (a) type a natural-language query known to match `test.mp4`
-  and get a result; (b) click a result and confirm the player seeks to that
-  timestamp and plays; (c) frame-step (or `1/fps` nudge) and confirm the time
-  changes; (d) Clip a segment and confirm a new file exists with the right
-  duration AND the original is byte-identical (re-hash it); (e) Queue two segments
-  + Stitch and confirm the output concatenates them in order; (f) confirm/reject an
-  annotation and confirm the DB row updated.
-- **On failure, the agent reads the screenshot + DOM + logs, diagnoses, fixes the
-  code, rebuilds, re-runs — it does NOT ask the user to paste an error.** Loop
-  until green or a genuine blocker, then report exactly what's stuck and what you
-  tried.
-- **Native-shell fallback only:** if a future build uses a native (egui/Tauri)
-  shell instead of the web app, verify with **Windows-MCP + pywinauto (UI
-  Automation)** — not coordinate-based pyautogui — but note egui exposes a weak
-  accessibility tree, which is why the default UI is web.
-- **Acceptance:** a green report, each scenario PASS with a screenshot + the
-  artifacts produced (clip files, DB changes), and a re-hash proving the source is
-  untouched.
+  and SEE a result row appear; (b) click a result and SEE the video at that
+  timestamp; (c) frame-step and SEE the time/frame change; (d) Clip a segment →
+  confirm a new file exists with the right duration AND the original is
+  byte-identical (re-hash it); (e) Queue two segments + Stitch → confirm the output
+  concatenates them in order; (f) confirm/reject an annotation → confirm the DB row
+  updated.
+- **On failure, read the screenshot + the app's log file, diagnose, fix the code,
+  rebuild, re-run — NEVER ask the user to read or paste an error.** Loop until
+  green or a genuine blocker, then report exactly what's stuck and what you tried.
+- **Acceptance:** a green report, each scenario PASS with the screenshot that
+  proves it + the artifacts produced (clip files, DB changes), and a re-hash
+  proving the source is untouched.
 
 ## PHASE 7 — Final report
 Summarize: environment, models installed (with smoke-test results), each pipeline

@@ -23,11 +23,19 @@ runbook. Do not improvise an architecture or ask the user for a prompt.
 2. **`legacy/` is the OLD generic engine — ignore it.** Build only from `src/`.
 3. **Source videos are evidence — never modify or delete them.** Write only to
    `tmp/`, `osint-export/`, the DB, `models/`, and build artifacts.
-4. **Test your own work and self-verify with REAL UI interaction** (BUILD.md
-   Phase 6): drive the actual app with mouse/keyboard + screen vision and fix
-   failures yourself. **Never ask the user to copy-paste error codes** — read the
-   logs and screenshots directly. Use **subagents** (one per phase) to keep your
-   context focused, and **create skills** for repeated sub-tasks.
+4. **The GUI is NATIVE and you verify it by SCREENSHOT. Do not relitigate this.**
+   You will *instinctively* want to make the UI a web app and verify it with
+   browser automation (Playwright). **That instinct is wrong here and is a hard
+   NO** — the user has shipped many video apps and web video stacks fail for this
+   work. Build native (Rust `egui` + `libmpv`, frame-accurate) per `docs/GUI.md`.
+   Verify by driving the real app and reading SCREENSHOTS with your own vision.
+   **Tool yourself for control** by adding the **Windows-MCP** server to Claude
+   Code (`claude mcp add` — repo github.com/CursorTouch/Windows-MCP; it gives you
+   mouse/keyboard/screenshot); optional pixel-grounding via ShowUI-2B. Exact loop
+   and scenarios are in BUILD.md Phase 6. **Never ask the user to paste error
+   codes** — read the screenshot + the app's log yourself and fix it.
+5. **Use subagents** (one per phase) to keep your context focused, and **create
+   skills** for repeated sub-tasks (e.g. `.claude/skills/ui-verify`).
 
 ## Map
 
@@ -39,7 +47,7 @@ runbook. Do not improvise an architecture or ask the user for a prompt.
 - `docs/VISION.md` — how vision works, incl. multi-hour clips (read-only).
 - `docs/IDENTITY.md` — naming people/places + the learning/coverage loop.
 - `docs/CONTEXT-REVIEW.md` — the per-media case-aware nuance agent.
-- `docs/GUI.md` — the investigator UI (local web app): layout, design, the
+- `docs/GUI.md` — the investigator UI (native: egui + libmpv): layout, design, the
   natural-language query agent, clip/stitch, and how it's self-verified.
 - `docs/SETTINGS.md` + `config/settings.schema.json` — GUI-exposed vs set-once.
 - `docs/MODELS-2026.md` — the cited research behind the model choices + cost math.

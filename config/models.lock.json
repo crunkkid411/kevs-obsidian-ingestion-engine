@@ -109,8 +109,8 @@
     "onnx_runtime_rust": "ort crate (https://github.com/pykeio/ort) for LR-ASD + face models",
     "storage": "SQLite + sqlite-vec (https://github.com/asg017/sqlite-vec) — single-user; or Postgres+pgvector for a shared index",
     "frames_and_signature": "ffmpeg/ffprobe (frame-accurate extraction + scene filter + MPEG-7 `signature` filter)",
-    "gui": "LOCAL WEB APP (see docs/GUI.md): Rust(axum)/Go backend on 127.0.0.1 serving a JSON API over the DB + query agent; plain HTML/CSS/JS frontend; HTML5 video preview (WebCodecs for true frame-step); clip/stitch via auto-editor (Nim, already installed). NOT native egui — web so the build can self-verify via browser automation. Native alt: Tauri, or libmpv+egui.",
-    "ui_verification": "Playwright MCP / browser-harness against the local URL (BUILD.md Phase 6). Native-shell fallback: Windows-MCP + pywinauto (UI Automation) — NOT coordinate-based pyautogui.",
+    "gui": "NATIVE desktop app (see docs/GUI.md). DO NOT build a web UI — the user has extensively tried browser video stacks and rejected them; a web pivot is a hard NO. Use Rust `egui` (crate: eframe/egui) + libmpv for frame-accurate video (Rust crate: `libmpv2`, or `egui-video`/`mpv` bindings); Qt+libmpv is the only acceptable alternative. Clip/stitch via auto-editor (Nim, already installed). The UI talks to the SQLite/sqlite-vec DB + query agent in-process — no HTTP server, no browser.",
+    "ui_verification": "MANDATORY screenshot verification with Claude's vision (BUILD.md Phase 6). DO NOT use Playwright/browser automation and DO NOT settle for unit tests. Tool yourself: add the Windows-MCP server to Claude Code -> `claude mcp add windows-mcp -- <Windows-MCP launch cmd>` (repo: github.com/CursorTouch/Windows-MCP; it provides mouse/keyboard/screenshot). Alt: github.com/claude-did-this/MCPControl or a Win32 SendInput helper. Optional click-grounding model: ShowUI-2B (github.com/showlab/ShowUI). Loop: screenshot -> read with your vision -> CLICK/TYPE via the MCP -> screenshot -> verify.",
     "face_landmarks": "MediaPipe (face mesh / lip landmarks) for ASD cropping"
   }
 }
