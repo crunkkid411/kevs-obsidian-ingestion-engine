@@ -29,11 +29,13 @@ runbook. Do not improvise an architecture or ask the user for a prompt.
    NO** — the user has shipped many video apps and web video stacks fail for this
    work. Build native (Rust `egui` + `libmpv`, frame-accurate) per `docs/GUI.md`.
    Verify by driving the real app and reading SCREENSHOTS with your own vision.
-   **Tool yourself for control** by adding the **Windows-MCP** server to Claude
-   Code (`claude mcp add` — repo github.com/CursorTouch/Windows-MCP; it gives you
-   mouse/keyboard/screenshot); optional pixel-grounding via ShowUI-2B. Exact loop
-   and scenarios are in BUILD.md Phase 6. **Never ask the user to paste error
-   codes** — read the screenshot + the app's log yourself and fix it.
+   **Tool yourself directly from your shell** (you have full machine access — no
+   MCP needed): screenshot to a PNG and Read it; click/type via a small helper
+   (`nircmd` / AutoHotkey / a Python `user32` SendInput script / Rust `enigo`).
+   MCP (Windows-MCP) is optional, not required; ShowUI-2B is an optional
+   click-grounding tool. Exact loop + scenarios in BUILD.md Phase 6. **Never ask
+   the user to paste error codes** — read the screenshot + the app's log and fix it.
+   You MAY delegate to specialist agents — see `docs/ORCHESTRATION.md`.
 5. **Use subagents** (one per phase) to keep your context focused, and **create
    skills** for repeated sub-tasks (e.g. `.claude/skills/ui-verify`).
 
@@ -49,6 +51,8 @@ runbook. Do not improvise an architecture or ask the user for a prompt.
 - `docs/CONTEXT-REVIEW.md` — the per-media case-aware nuance agent.
 - `docs/GUI.md` — the investigator UI (native: egui + libmpv): layout, design, the
   natural-language query agent, clip/stitch, and how it's self-verified.
+- `docs/ORCHESTRATION.md` — agent/tool terminology + delegating to other agents
+  (Qwen-CLI, WSL Hermes, ShowUI) via the shell; evidence-integrity guardrails.
 - `docs/SETTINGS.md` + `config/settings.schema.json` — GUI-exposed vs set-once.
 - `docs/MODELS-2026.md` — the cited research behind the model choices + cost math.
 
