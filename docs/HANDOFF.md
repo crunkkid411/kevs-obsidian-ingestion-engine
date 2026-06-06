@@ -129,25 +129,33 @@ rationale; a noise-only video yields zero annotations.
 entries (case prompt, backend, model, concurrency, search + accuracy knobs) and
 hides `gui:false` ones (model ids, dims, storage, paths). See `docs/SETTINGS.md`.
 
-### M6 — Embeddings + search (`embed`)
+### M6 — Embeddings + the query agent (`embed` / search endpoint)
 fastembed-rs Qwen3-Embedding-0.6B → vectors into sqlite-vec; port the
 query-expansion (`--expand` folds entity aliases/nicknames) from
-`src/search/query.js`. Add Qwen3-Reranker for precision if time allows.
+`src/search/query.js`. Then wrap it as the **natural-language query agent** the
+GUI calls: semantic ANN + alias expansion + an optional LLM intent-parse layer
+(entity / time-range / event-kind / location filters). Add Qwen3-Reranker for
+precision if time allows. See `docs/GUI.md` → "Natural-language search".
 **Accept:** "every time he mentions his wife" returns the oblique "my ex … 4
-months" utterance, each hit showing source + timestamp + attribution + review state.
+months" utterance; "phone calls at his home" filters to `phone_call` events at the
+matched location — each hit with source + timestamp + speaker + flags.
 
-### M7 — Player + clipper (`player`) — the investigator's surface
-libmpv + egui desktop app:
-- Left: search box + results list (events, search hits, locations-of-interest),
-  each row = file + timestamp + attribution + flags.
-- Center: mpv video, **frame-accurate** step (`,`/`.`), exact seek to a hit.
-- Mark **in/out**, then export an evidence clip via **`auto-editor`** (you have it
-  installed — it cuts more precisely than raw ffmpeg) and record a `clips` row.
-- One-click **review actions**: confirm / reject / set speaker identity; writes the
-  `needs_review`, `attribution_*`, and `reviewed_by` fields.
-- "Open OSINT folder" for a location-of-interest.
-**Accept:** a non-technical user can search a phrase, jump to the exact frame,
-confirm the speaker, and export a clip — without touching a terminal.
+### M7 — Investigator GUI — a LOCAL WEB APP (the deliverable)
+Full spec in `docs/GUI.md` (read it). Rust/axum or Go backend serving a localhost
+JSON API over the DB + query agent + clip/stitch; plain HTML/CSS/JS frontend; dark
+neon design. **Not native egui** — a web UI so the autonomous build can self-verify
+with browser automation (see BUILD.md Phase 6 + GUI.md rationale).
+- Full-width NL search box → query agent (M6).
+- Left ~50%: results column (quote, timestamp, speaker, flags, file, location);
+  click a row → player seeks + plays that segment; fast switching.
+- Right ~50%: HTML5 video player (WebCodecs for true frame-step if wanted),
+  **Clip this**, **+ Queue**, queue list, **Stitch ⬇** (sequential concat). Clips
+  cut by **`auto-editor`** from exact DB timestamps; the original is never touched.
+- Review actions (confirm/reject/set identity) writing the review fields; "Open
+  OSINT folder" for a location.
+**Accept:** a non-technical user, in a browser at the local URL, searches in plain
+language → clicks a quote → it plays → clips/queues/stitches → reviews — no
+terminal; and a re-hash proves the source files are unchanged.
 
 ### M8 — On-demand understanding (optional)
 Wire `VIDEO_BACKEND` to llama.cpp (local Qwen3-VL on extracted frames) and/or

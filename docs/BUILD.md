@@ -49,15 +49,16 @@ runs overnight, and the investigator searches in plain language, sees flagged
 "20% nuance" on a timeline, jumps to the exact frame, confirms/corrects, and
 exports clips — with a provenance trail behind every item. Storage = SQLite +
 sqlite-vec (no server). Audio = sherpa-onnx. Embeddings = fastembed-rs or
-llama.cpp. VLM = llama.cpp (on-demand). Player = libmpv + egui; clips via
-auto-editor. See `docs/NATIVE-STACK.md` and `docs/HANDOFF.md` (milestones
+llama.cpp. VLM = llama.cpp (on-demand). GUI = a **local web app** with a
+natural-language query agent and auto-editor clip/stitch (see `docs/GUI.md`).
+See `docs/NATIVE-STACK.md` and `docs/HANDOFF.md` (milestones
 M1–M8, M5.5, M5.7) for the module breakdown — this runbook is the execution order.
 
 ---
 
 ## PHASE 0 — Orient & detect environment
 - Read this file, `config/models.lock.json`, `docs/ARCHITECTURE.md`,
-  `docs/NATIVE-STACK.md`, `docs/VISION.md`.
+  `docs/NATIVE-STACK.md`, `docs/VISION.md`, `docs/GUI.md`.
 - Detect: OS, GPU + VRAM, and presence of `ffmpeg`/`ffprobe`, `node`, `python`,
   `rust`/`cargo`, `git`, and `auto-editor`. Install what's missing (see
   `docs/SETUP-WINDOWS.md`). Confirm `test.mp4` exists in the repo root.
@@ -116,46 +117,57 @@ stage by stage (see `src/ingest.js`). After each, query the DB to verify rows.
   (or correctly reports "no significance" if test.mp4 has nothing case-relevant),
   each flagged unreviewed with rationale + confidence + prompt_hash.
 
-## PHASE 5 — Build the player / investigator GUI (subagent; the deliverable)
-Native desktop app (Rust: `libmpv` + `egui`; see `docs/HANDOFF.md` M7). Minimum:
-- Search box + results list (search hits, events, locations, context
-  annotations) — each row shows file, timestamp, named speaker/location, flags.
-- mpv video pane with **frame-accurate** stepping (`,`/`.`) and exact seek to a
-  result's timestamp.
-- A per-source **timeline strip** marking the "20% nuance" events.
-- **Review actions** (confirm / reject / set identity) writing `needs_review`,
-  `reviewed_by`, etc.
-- **Clip export** via `auto-editor` (frame-accurate) → writes a `clips` row.
-- "Open OSINT folder" for a location.
-- **Acceptance:** the app launches, loads `test.mp4`'s index from the DB, and a
-  human (or the Phase 6 harness) can search → jump to frame → play → confirm →
-  export a clip, with no terminal use.
+## PHASE 5 — Build the investigator GUI (subagent; the deliverable)
+Build the **local web app** specified in `docs/GUI.md` (Rust/axum or Go backend
+serving a localhost JSON API over the DB + the query agent + clip/stitch via
+`auto-editor`; plain HTML/CSS/JS frontend). The heavy compute stays native; only
+this thin UI shell is web (rationale + the browser-automation verification benefit
+are in `docs/GUI.md`). Minimum:
+- Full-width **natural-language search box** → the **query agent** endpoint
+  (semantic + alias expansion + optional LLM intent-parse; extend
+  `src/search/query.js`). Returns ranked segments with file/timestamp/speaker/
+  location/flags/confidence + matching context annotations.
+- **Left column (~50%):** scrollable results (quote, timestamp, speaker, flags,
+  file, location). Clicking a row **seeks the player and plays that segment**;
+  switching rows switches fast.
+- **Right (~50%):** video player (part of the screen), transport, **"Clip this"**,
+  **"+ Queue"**, the **queue list**, and **"Stitch ⬇"** (sequential concat).
+  Clips cut with `auto-editor` from exact DB timestamps → frame-accurate output;
+  the original is never modified.
+- **Review actions** (confirm/reject/set identity) writing the review fields.
+- Dark neon design per `docs/GUI.md` (semantic colors; calm, obvious).
+- **Acceptance:** the app launches at a localhost URL, loads `test.mp4`'s index,
+  and a human (or the Phase 6 harness) can search → click a result → it plays →
+  Clip / Queue / Stitch → review — with no terminal use.
 
 ## PHASE 6 — Self-verification with real UI interaction (REQUIRED)
-Do not declare done from passing unit tests alone. Drive the actual app like a
-user and watch what happens at the screen level.
+Do not declare done from unit tests alone. Drive the actual UI like a user and
+watch what happens.
 
-- Build a small UI-driver harness under `tools/ui_verify/` that can: launch the
-  app, take screenshots, move/click the mouse, type text, and read back the
-  screen. On Windows the concrete path is a Python harness using **`pyautogui`**
-  (input) + **`mss`** (screenshots) + reading the app's stdout/stderr log; for any
-  browser-based piece use **Playwright** instead.
-- Spawn a SEPARATE Claude Code instance (or a subagent driving the harness in a
-  vision loop) that, for each acceptance scenario: takes a screenshot → decides
-  the next action from what it SEES (not from assumptions) → performs the
-  click/keystroke → screenshots again → verifies the expected change. Capture
-  screenshots + logs to `tools/ui_verify/runs/`.
-- Scenarios to pass: (a) search a phrase known to be in `test.mp4` and get a hit;
-  (b) click the hit and confirm the video seeks to that timestamp; (c) frame-step
-  and confirm the frame counter moves one frame; (d) mark in/out and export a clip
-  and confirm the file exists and is the right duration; (e) confirm/reject an
+- **Because the UI is a local web app, verify with browser automation** —
+  **Playwright MCP** (preferred for Claude Code) or an equivalent browser-harness
+  — driving a real browser at the local URL. This gives reliable accessibility-tree
+  targeting, clicks/typing, screenshots, and DOM assertions. Spawn a SEPARATE
+  Claude Code instance (or a subagent driving the harness in a see→act→verify
+  loop). Capture screenshots + logs to `tools/ui_verify/runs/`.
+- Scenarios to pass: (a) type a natural-language query known to match `test.mp4`
+  and get a result; (b) click a result and confirm the player seeks to that
+  timestamp and plays; (c) frame-step (or `1/fps` nudge) and confirm the time
+  changes; (d) Clip a segment and confirm a new file exists with the right
+  duration AND the original is byte-identical (re-hash it); (e) Queue two segments
+  + Stitch and confirm the output concatenates them in order; (f) confirm/reject an
   annotation and confirm the DB row updated.
-- **When something fails, the harness/agent reads the screenshot + logs, diagnoses,
-  fixes the code, rebuilds, and re-runs — it does not ask the user to paste an
-  error.** Loop until all scenarios pass or you hit a genuine blocker you cannot
-  resolve, in which case report exactly what's stuck and what you tried.
-- **Acceptance:** a green report listing each scenario PASS with a screenshot, and
-  the clip/DB artifacts it produced.
+- **On failure, the agent reads the screenshot + DOM + logs, diagnoses, fixes the
+  code, rebuilds, re-runs — it does NOT ask the user to paste an error.** Loop
+  until green or a genuine blocker, then report exactly what's stuck and what you
+  tried.
+- **Native-shell fallback only:** if a future build uses a native (egui/Tauri)
+  shell instead of the web app, verify with **Windows-MCP + pywinauto (UI
+  Automation)** — not coordinate-based pyautogui — but note egui exposes a weak
+  accessibility tree, which is why the default UI is web.
+- **Acceptance:** a green report, each scenario PASS with a screenshot + the
+  artifacts produced (clip files, DB changes), and a re-hash proving the source is
+  untouched.
 
 ## PHASE 7 — Final report
 Summarize: environment, models installed (with smoke-test results), each pipeline

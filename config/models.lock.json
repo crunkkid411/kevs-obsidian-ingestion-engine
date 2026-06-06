@@ -109,7 +109,8 @@
     "onnx_runtime_rust": "ort crate (https://github.com/pykeio/ort) for LR-ASD + face models",
     "storage": "SQLite + sqlite-vec (https://github.com/asg017/sqlite-vec) — single-user; or Postgres+pgvector for a shared index",
     "frames_and_signature": "ffmpeg/ffprobe (frame-accurate extraction + scene filter + MPEG-7 `signature` filter)",
-    "player": "libmpv + egui (Rust); clip export via auto-editor (Nim, already installed) for frame-accurate cuts",
+    "gui": "LOCAL WEB APP (see docs/GUI.md): Rust(axum)/Go backend on 127.0.0.1 serving a JSON API over the DB + query agent; plain HTML/CSS/JS frontend; HTML5 video preview (WebCodecs for true frame-step); clip/stitch via auto-editor (Nim, already installed). NOT native egui — web so the build can self-verify via browser automation. Native alt: Tauri, or libmpv+egui.",
+    "ui_verification": "Playwright MCP / browser-harness against the local URL (BUILD.md Phase 6). Native-shell fallback: Windows-MCP + pywinauto (UI Automation) — NOT coordinate-based pyautogui.",
     "face_landmarks": "MediaPipe (face mesh / lip landmarks) for ASD cropping"
   }
 }

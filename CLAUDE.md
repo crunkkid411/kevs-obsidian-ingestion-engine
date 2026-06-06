@@ -39,6 +39,8 @@ runbook. Do not improvise an architecture or ask the user for a prompt.
 - `docs/VISION.md` — how vision works, incl. multi-hour clips (read-only).
 - `docs/IDENTITY.md` — naming people/places + the learning/coverage loop.
 - `docs/CONTEXT-REVIEW.md` — the per-media case-aware nuance agent.
+- `docs/GUI.md` — the investigator UI (local web app): layout, design, the
+  natural-language query agent, clip/stitch, and how it's self-verified.
 - `docs/SETTINGS.md` + `config/settings.schema.json` — GUI-exposed vs set-once.
 - `docs/MODELS-2026.md` — the cited research behind the model choices + cost math.
 

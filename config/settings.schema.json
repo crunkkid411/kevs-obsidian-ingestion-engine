@@ -26,6 +26,21 @@
     },
 
     {
+      "key": "QUERY_AGENT_INTENT_PARSE", "label": "Smart query understanding",
+      "type": "bool", "default": true, "gui": true, "group": "Search",
+      "help": "Let an LLM parse filters (person, date range, event type, location) from your plain-language search. Off = semantic + alias search only."
+    },
+    {
+      "key": "QUERY_AGENT_BACKEND", "label": "Query understanding backend",
+      "type": "enum", "options": ["claude-code", "openrouter", "none"],
+      "default": "claude-code", "gui": true, "group": "Search",
+      "help": "Where the query-understanding LLM runs. claude-code keeps queries local."
+    },
+    {
+      "key": "QUERY_AGENT_MODEL", "label": "Query understanding model",
+      "type": "string", "default": "claude-opus-4-8", "gui": true, "group": "Search"
+    },
+    {
       "key": "SEARCH_INCLUDE_UNREVIEWED", "label": "Include unverified results by default",
       "type": "bool", "default": false, "gui": true, "group": "Search",
       "help": "Show AI conclusions that a human hasn't confirmed yet. Off = only verified/high-confidence."
