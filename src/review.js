@@ -22,7 +22,10 @@ async function main() {
 
   let sources;
   if (all) {
-    sources = (await pool.query('SELECT id, file_name FROM sources ORDER BY ingested_at')).rows;
+    const sql = 'SELECT id, file_name FROM sources ORDER BY ingested_at';
+    sources = typeof pool.query === 'function'
+      ? (await pool.query(sql)).rows           // Postgres
+      : pool.prepare(sql).all();               // SQLite DatabaseSync
   } else {
     sources = await sourcesNeedingReview();
   }
