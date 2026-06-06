@@ -252,5 +252,30 @@ export async function insertContextAnnotation(sourceId, a) {
   );
 }
 
+/**
+ * Load all voice (and optionally face) enrollments for use during ingestion.
+ * Reads from the `voice_enrollments` table populated by scripts/enroll_voice.py.
+ * Returns [{ entity_name, modality, embedding: Float32Array }]
+ */
+export function loadEnrollments() {
+  if (!db) return [];
+  // voice_enrollments may not exist yet (created on first enrollment)
+  let rows;
+  try {
+    rows = db.prepare(
+      'SELECT entity_name, modality, embedding FROM voice_enrollments ORDER BY enrolled_at'
+    ).all();
+  } catch {
+    // Table doesn't exist yet — no enrollments
+    return [];
+  }
+  return rows.map((r) => ({
+    entity_name: r.entity_name,
+    modality: r.modality,
+    // embedding is stored as a packed float32 BLOB; convert to Float32Array
+    embedding: new Float32Array(r.embedding.buffer ?? r.embedding),
+  }));
+}
+
 /** Returns the raw db handle (used by query.js for ad-hoc queries). */
 export function getPool() { return db; }

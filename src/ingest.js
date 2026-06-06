@@ -22,6 +22,7 @@ import {
   connect, isIngested, registerSource, logCustody, logStage,
   insertWords, upsertSpeaker, insertUtterance, insertEmbedding,
   insertEvent, insertFrameSignature, insertLocationOfInterest,
+  loadEnrollments,
 } from './db/index.js';
 import { analyzeFrames as analyzeSignatures, aHash } from './analyze/signatures.js';
 import { speakerEvents, locationEvents } from './analyze/events.js';
@@ -307,9 +308,10 @@ async function main() {
   // Load the case knowledge base for natural-language naming.
   KNOWN_LOCATIONS = await loadKnownLocations();
   if (KNOWN_LOCATIONS.length) console.log(`[kb] ${KNOWN_LOCATIONS.length} known locations loaded (${KNOWN_LOCATIONS.map((l) => l.name).join(', ')})`);
-  // ENROLLMENTS (voice/face prints) are loaded by the native build from the DB;
-  // the JS prototype leaves them empty unless wired, so speakers read
-  // "unidentified speaker N" until enrollment + a voice/face model are present.
+  // Load voice/face enrollments for speaker ID matching.
+  ENROLLMENTS = loadEnrollments();
+  if (ENROLLMENTS.length) console.log(`[kb] ${ENROLLMENTS.length} enrollment(s) loaded: ${[...new Set(ENROLLMENTS.map((e) => e.entity_name))].join(', ')}`);
+  else console.log('[kb] no enrollments — speakers will read "unidentified speaker N" (enroll via scripts/enroll_voice.py)');
 
   console.log(`[scan] ${root}`);
   const videos = await local.listVideos(root);

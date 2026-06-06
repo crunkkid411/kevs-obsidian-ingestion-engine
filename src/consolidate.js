@@ -19,63 +19,88 @@
 import 'dotenv/config';
 import { connect, getPool } from './db/index.js';
 
-async function coverage(pool) {
-  const total = (await pool.query('SELECT count(*)::int AS n FROM sources')).rows[0].n;
+function coverage(db) {
+  const totalRow = db.prepare('SELECT count(*) AS n FROM sources').get();
+  const total = totalRow ? Number(totalRow.n) : 0;
 
-  const named = (await pool.query(`
-    SELECT speaker_name, count(DISTINCT source_id)::int AS videos, count(*)::int AS utterances
+  const named = db.prepare(`
+    SELECT speaker_name, count(DISTINCT source_id) AS videos, count(*) AS utterances
     FROM utterances
-    WHERE speaker_name IS NOT NULL AND speaker_name NOT ILIKE 'unidentified%'
-    GROUP BY speaker_name ORDER BY videos DESC`)).rows;
+    WHERE speaker_name IS NOT NULL AND lower(speaker_name) NOT LIKE 'unidentified%'
+    GROUP BY speaker_name ORDER BY videos DESC
+  `).all();
 
-  const unident = (await pool.query(`
-    SELECT count(*)::int AS utterances, count(DISTINCT source_id)::int AS videos
-    FROM utterances WHERE speaker_name IS NULL OR speaker_name ILIKE 'unidentified%'`)).rows[0];
+  const unident = db.prepare(`
+    SELECT count(*) AS utterances, count(DISTINCT source_id) AS videos
+    FROM utterances WHERE speaker_name IS NULL OR lower(speaker_name) LIKE 'unidentified%'
+  `).get();
 
-  const places = (await pool.query(`
-    SELECT location_name, count(DISTINCT source_id)::int AS videos
+  const places = db.prepare(`
+    SELECT location_name, count(DISTINCT source_id) AS videos
     FROM locations_of_interest WHERE location_name IS NOT NULL
-    GROUP BY location_name ORDER BY videos DESC`)).rows;
+    GROUP BY location_name ORDER BY videos DESC
+  `).all();
+
+  const needsReview = db.prepare(`
+    SELECT count(*) AS n FROM utterances WHERE needs_review = 1
+  `).get();
 
   console.log(`\n=== COVERAGE (${total} videos) ===`);
-  if (!named.length) console.log('No named speakers yet — enroll a voice/face for each person of interest.');
+  if (!named.length) console.log('  No named speakers yet — enroll a voice/face for each person of interest.');
   for (const r of named) {
-    const pct = total ? ((r.videos / total) * 100).toFixed(0) : '0';
-    const warn = total && r.videos / total < 0.5 ? '  ⚠ low — check enrollment/threshold' : '';
-    console.log(`  ${r.speaker_name}: recognized in ${r.videos}/${total} videos (${pct}%), ${r.utterances} utterances${warn}`);
+    const videos = Number(r.videos);
+    const utterances = Number(r.utterances);
+    const pct = total ? ((videos / total) * 100).toFixed(0) : '0';
+    const warn = total && videos / total < 0.5 ? '  ⚠ low — check enrollment/threshold' : '';
+    console.log(`  ${r.speaker_name}: recognized in ${videos}/${total} videos (${pct}%), ${utterances} utterances${warn}`);
   }
-  console.log(`  unidentified: ${unident.utterances} utterances across ${unident.videos} videos`);
+  const unidentUtterances = Number(unident?.utterances ?? 0);
+  const unidentVideos = Number(unident?.videos ?? 0);
+  console.log(`  unidentified: ${unidentUtterances} utterances across ${unidentVideos} videos`);
+  console.log(`  needs_review: ${Number(needsReview?.n ?? 0)} utterances flagged`);
   if (places.length) {
-    console.log(`  locations:`);
-    for (const p of places) console.log(`    ${p.location_name}: ${p.videos}/${total} videos`);
+    console.log('  locations:');
+    for (const p of places) console.log(`    ${p.location_name}: ${Number(p.videos)}/${total} videos`);
   }
 }
 
 /**
  * Propagate human-confirmed speaker names. If a reviewer set speakers.entity_id
  * for a cluster (link_method='manual'), copy the entity's canonical name onto
- * that source's utterances for that cluster. (Cross-video voice/face matching is
- * the native build's job; this applies confirmed within-source bindings + keeps
- * names consistent.)
+ * that source's utterances for that cluster.
  */
-async function propagate(pool) {
-  const r = await pool.query(`
-    UPDATE utterances u
-    SET speaker_name = e.canonical_name, speaker_confidence = 1.0
-    FROM speakers s
-    JOIN entities e ON e.id = s.entity_id
-    WHERE u.speaker_id = s.id AND s.entity_id IS NOT NULL
-      AND (u.speaker_name IS NULL OR u.speaker_name ILIKE 'unidentified%')
-    `);
-  console.log(`\n=== PROPAGATION ===\n  applied confirmed names to ${r.rowCount} utterances`);
+function propagate(db) {
+  // Check if entities table has any rows first
+  const entityCount = db.prepare('SELECT count(*) AS n FROM entities').get();
+  if (!entityCount || Number(entityCount.n) === 0) {
+    console.log('\n=== PROPAGATION ===\n  no confirmed entity bindings yet (no manual speaker links)');
+    return;
+  }
+
+  const result = db.prepare(`
+    UPDATE utterances
+    SET speaker_name = (
+      SELECT e.canonical_name FROM speakers s
+      JOIN entities e ON e.id = s.entity_id
+      WHERE s.id = utterances.speaker_id AND s.entity_id IS NOT NULL
+    ),
+    speaker_confidence = 1.0
+    WHERE speaker_id IN (
+      SELECT s.id FROM speakers s
+      WHERE s.entity_id IS NOT NULL
+        AND (utterances.speaker_name IS NULL OR lower(utterances.speaker_name) LIKE 'unidentified%')
+    )
+  `).run();
+
+  console.log(`\n=== PROPAGATION ===\n  applied confirmed names to ${result.changes} utterances`);
 }
 
 async function main() {
   await connect();
-  const pool = getPool();
-  if (!pool) { console.error('No DATABASE_URL — nothing to consolidate.'); process.exit(1); }
-  await propagate(pool);
-  await coverage(pool);
+  const db = getPool();
+  if (!db) { console.error('No DB connection — nothing to consolidate.'); process.exit(1); }
+  propagate(db);
+  coverage(db);
   console.log('\nTip: low-coverage names usually mean a missing/weak voice or face ' +
     'enrollment, or an ASD/identification threshold set too strict.');
   process.exit(0);

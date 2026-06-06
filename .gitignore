@@ -14,6 +14,8 @@ models/
 tools/ui_verify/runs/
 osint-export/
 forensic.db
+forensic.db-shm
+forensic.db-wal
 .venv/
 test.mp4
 *.mp4

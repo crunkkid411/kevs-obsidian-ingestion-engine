@@ -86,7 +86,7 @@ export async function runDiarization(wavPath) {
     if (process.env.SHERPA_SEG_MODEL) diarEnv.SHERPA_SEG_MODEL = process.env.SHERPA_SEG_MODEL;
     if (process.env.SHERPA_EMBED_MODEL) diarEnv.SHERPA_EMBED_MODEL = process.env.SHERPA_EMBED_MODEL;
     const out = await runJson(
-      `${PY} "${path.join(SCRIPTS, 'diarize_sortformer.py')}" "${wavPath}" --max-speakers ${maxSpeakers || 0}`,
+      `${PY} "${path.join(SCRIPTS, 'diarize_sortformer.py')}" "${wavPath}" --max-speakers ${maxSpeakers || 0} --output-embeddings`,
       { env: diarEnv },
     );
     return { ...out, model: out.model || model };

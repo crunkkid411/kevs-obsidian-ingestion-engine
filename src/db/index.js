@@ -29,3 +29,4 @@ export const sourcesNeedingReview     = mod.sourcesNeedingReview;
 export const gatherForReview          = mod.gatherForReview;
 export const insertContextAnnotation  = mod.insertContextAnnotation;
 export const getPool                  = mod.getPool;
+export const loadEnrollments          = mod.loadEnrollments;
