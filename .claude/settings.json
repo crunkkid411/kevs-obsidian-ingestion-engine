@@ -1,0 +1,13 @@
+{
+  "$comment": "Deterministic guardrails for any agent building this repo. The PreToolUse hook hard-blocks the specific 'slop' behaviors (popup players, web/Electron/Tauri UIs, local web servers, browser automation) that violate the native-GUI spec. Prose didn't stop them; this does. Edit .claude/hooks/guard.mjs to adjust.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "node .claude/hooks/guard.mjs" }
+        ]
+      }
+    ]
+  }
+}

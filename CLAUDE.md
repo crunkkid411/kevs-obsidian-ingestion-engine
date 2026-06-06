@@ -7,11 +7,32 @@ searches in plain language, jumps to the exact frame, verifies, and exports clip
 — with a provenance trail behind every claim. It is a **triage tool, not court
 evidence**: name things confidently with a confidence score; the human verifies.
 
+## STOP — how to build this without producing slop (read first)
+
+A previous run drifted to Python + ffmpeg popup players + a web UI and wasted
+hours. Do not repeat it. Hard rules for this build:
+
+- **Build in SMALL STEPS and STOP after each to show the user.** Do NOT run for
+  hours unsupervised. One milestone → verify → report → wait. The user is fine
+  being in the loop; they are NOT fine getting 4 hours of slop.
+- **Deterministic hooks now ENFORCE the spec.** `.claude/hooks/guard.mjs` (wired in
+  `.claude/settings.json`) hard-blocks popup players (ffplay/vlc/mpv-CLI), web/
+  Electron/Tauri UIs, local web servers, and browser automation. If you get
+  blocked, you drifted — **comply, do not work around it.**
+- **MILESTONE 1, and ONLY this, on the first run:** a NATIVE **Rust `egui` +
+  `libmpv`** window that opens `./test.mp4` and plays it **with audio**, with
+  play/pause and a seek bar. No pipeline. No Python. No web. No database. When it
+  runs, take a screenshot, confirm audio+video, and **STOP and tell the user to
+  look.** Do not proceed to anything else until they say go.
+- Only after the user approves Milestone 1 do you continue with `docs/BUILD.md`
+  (still one phase at a time, stopping between phases).
+
 ## If the user says "set this up" (or similar)
 
-They have cloned the repo and dropped a `test.mp4` in the root. That is the whole
-brief. **Execute `docs/BUILD.md` end to end.** It is the authoritative, ordered
-runbook. Do not improvise an architecture or ask the user for a prompt.
+They have cloned the repo and dropped a `test.mp4` in the root. **Do Milestone 1
+above, then STOP.** `docs/BUILD.md` is the ordered runbook for the phases that
+follow — but execute it one phase at a time with a checkpoint after each, not in
+one autonomous marathon. Do not improvise an architecture.
 
 ## Four things you must internalize before touching code
 
