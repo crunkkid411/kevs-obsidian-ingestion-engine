@@ -23,6 +23,13 @@ const VIDEO_EXTS = new Set([
   '.mp4', '.mov', '.mkv', '.webm', '.avi', '.m4v', '.flv', '.ts', '.mts', '.m2ts', '.wmv',
 ]);
 
+// Directories that are never footage — skip to avoid false hits on .ts TypeScript
+// files, git objects, node_modules, build artifacts, etc.
+const SKIP_DIRS = new Set([
+  'node_modules', '.git', '.claude', 'legacy', 'tmp', 'models',
+  'osint-export', 'vault', 'dist', 'build', '.remember', 'scripts',
+]);
+
 /**
  * Recursively list every video file under `root`.
  * Returns lightweight entries; hashing/probing happen on demand (they're slow).
@@ -40,6 +47,7 @@ export async function listVideos(root) {
     for (const it of items) {
       const full = path.join(dir, it.name);
       if (it.isDirectory()) {
+        if (SKIP_DIRS.has(it.name)) continue;
         await walk(full);
       } else if (VIDEO_EXTS.has(path.extname(it.name).toLowerCase())) {
         const stat = await fsp.stat(full).catch(() => null);

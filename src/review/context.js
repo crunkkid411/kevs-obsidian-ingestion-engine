@@ -11,7 +11,7 @@ import fs from 'fs/promises';
 import crypto from 'crypto';
 import { config } from '../config.js';
 import { runReviewAgent } from './backends.js';
-import { gatherForReview, insertContextAnnotation, logCustody } from '../db/forensic.js';
+import { gatherForReview, insertContextAnnotation, logCustody } from '../db/index.js';
 
 function fmt(sec) {
   if (sec == null) return '?';

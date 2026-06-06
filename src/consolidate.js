@@ -17,7 +17,7 @@
  *   node src/consolidate.js
  */
 import 'dotenv/config';
-import { connect, getPool } from './db/forensic.js';
+import { connect, getPool } from './db/index.js';
 
 async function coverage(pool) {
   const total = (await pool.query('SELECT count(*)::int AS n FROM sources')).rows[0].n;

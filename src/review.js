@@ -11,7 +11,7 @@
  */
 import 'dotenv/config';
 import { config } from './config.js';
-import { connect, getPool, sourcesNeedingReview } from './db/forensic.js';
+import { connect, getPool, sourcesNeedingReview } from './db/index.js';
 import { reviewSource } from './review/context.js';
 
 async function main() {

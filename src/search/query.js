@@ -13,7 +13,7 @@
  */
 import 'dotenv/config';
 import { config } from '../config.js';
-import { connect, getPool } from '../db/forensic.js';
+import { connect, getPool } from '../db/index.js';
 import { embedTexts } from '../adapters/models.js';
 
 function parseArgs(argv) {
@@ -42,20 +42,32 @@ function expandQuery(query) {
   return extra.length ? `${query}\nrelated terms: ${[...new Set(extra)].join(', ')}` : query;
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
-  if (!args.query) { console.error('Usage: node src/search/query.js "<question>" [--k N] [--expand] [--include-unreviewed]'); process.exit(1); }
+async function searchSqlite(db, vecFloat32, k, includeUnreviewed) {
+  const reviewFilter = includeUnreviewed ? '' : 'AND (u.needs_review = 0 OR u.needs_review IS NULL)';
+  const sql = `
+    SELECT s.file_name, s.abs_path,
+           m.start_sec, m.end_sec, m.content,
+           u.speaker_name, u.speaker_confidence,
+           u.audio_speaker, u.visual_speaker, u.attribution_method,
+           u.attribution_confidence, u.attribution_conflict, u.needs_review,
+           1 - v.distance AS similarity
+    FROM (
+      SELECT rowid, distance
+      FROM embeddings_vec
+      WHERE embedding MATCH ?
+      AND k = ${k}
+      ORDER BY distance
+    ) v
+    JOIN embeddings_meta m ON m.id = v.rowid
+    JOIN sources s ON s.id = m.source_id
+    LEFT JOIN utterances u ON u.id = m.ref_id AND m.ref_kind = 'utterance'
+    WHERE m.modality = 'text' ${reviewFilter}
+    ORDER BY v.distance`;
+  return db.prepare(sql).all(vecFloat32);
+}
 
-  await connect();
-  const pool = getPool();
-  if (!pool) { console.error('No DATABASE_URL — cannot search.'); process.exit(1); }
-
-  const queryText = args.expand ? expandQuery(args.query) : args.query;
-  const emb = await embedTexts([queryText]);
-  if (emb.skipped || !emb.vectors?.[0]) { console.error(`Embedding failed: ${emb.reason || 'no vector'}`); process.exit(1); }
-  const vec = `[${emb.vectors[0].join(',')}]`;
-
-  const reviewFilter = args.includeUnreviewed ? '' : 'AND (u.needs_review = FALSE OR u.needs_review IS NULL)';
+async function searchPostgres(pool, vecJson, k, includeUnreviewed) {
+  const reviewFilter = includeUnreviewed ? '' : 'AND (u.needs_review = FALSE OR u.needs_review IS NULL)';
   const sql = `
     SELECT s.file_name, s.abs_path,
            e.start_sec, e.end_sec, e.content,
@@ -69,15 +81,38 @@ async function main() {
     WHERE e.modality = 'text' ${reviewFilter}
     ORDER BY e.embedding <=> $1
     LIMIT $2`;
-  const r = await pool.query(sql, [vec, args.k]);
+  const r = await pool.query(sql, [vecJson, k]);
+  return r.rows;
+}
 
-  if (!r.rows.length) { console.log('No matches. Try --expand or --include-unreviewed.'); process.exit(0); }
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  if (!args.query) { console.error('Usage: node src/search/query.js "<question>" [--k N] [--expand] [--include-unreviewed]'); process.exit(1); }
 
-  console.log(`\nTop ${r.rows.length} matches for: "${args.query}"${args.expand ? ' (expanded)' : ''}\n`);
-  for (const row of r.rows) {
+  await connect();
+  const pool = getPool();
+  if (!pool) { console.error('No database pool — cannot search.'); process.exit(1); }
+
+  const queryText = args.expand ? expandQuery(args.query) : args.query;
+  const emb = await embedTexts([queryText]);
+  if (emb.skipped || !emb.vectors?.[0]) { console.error(`Embedding failed: ${emb.reason || 'no vector'}`); process.exit(1); }
+
+  const storage = process.env.STORAGE || 'sqlite';
+  let rows;
+  if (storage === 'sqlite') {
+    const vecFloat32 = Float32Array.from(emb.vectors[0]);
+    rows = await searchSqlite(pool, vecFloat32, args.k, args.includeUnreviewed);
+  } else {
+    const vecJson = `[${emb.vectors[0].join(',')}]`;
+    rows = await searchPostgres(pool, vecJson, args.k, args.includeUnreviewed);
+  }
+
+  if (!rows.length) { console.log('No matches. Try --expand or --include-unreviewed.'); process.exit(0); }
+
+  console.log(`\nTop ${rows.length} matches for: "${args.query}"${args.expand ? ' (expanded)' : ''}\n`);
+  for (const row of rows) {
     const ts = fmt(row.start_sec);
     const sim = (row.similarity * 100).toFixed(1);
-    // Natural-language speaker name when we have one; else the raw cluster.
     const who = row.speaker_name || row.visual_speaker || row.audio_speaker || 'unidentified speaker';
     const whoConf = row.speaker_confidence != null ? ` (${(row.speaker_confidence * 100).toFixed(0)}% match)` : '';
     const flags = [

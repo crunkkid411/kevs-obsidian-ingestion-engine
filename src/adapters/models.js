@@ -24,8 +24,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPTS = path.resolve(__dirname, '../../scripts');
 const PY = process.env.PYTHON_BIN || 'python';
 
-async function runJson(cmd, { timeout = 3_600_000 } = {}) {
-  const { stdout, stderr } = await execAsync(cmd, { maxBuffer: 200 * 1024 * 1024, timeout });
+async function runJson(cmd, { timeout = 3_600_000, env } = {}) {
+  const opts = { maxBuffer: 200 * 1024 * 1024, timeout };
+  if (env) opts.env = env;
+  const { stdout, stderr } = await execAsync(cmd, opts);
   if (stderr) for (const l of stderr.split('\n').filter(Boolean)) console.log(`   ${l}`);
   // Grab the last JSON object in stdout (greedy to last brace; tolerant of
   // trailing whitespace and any leading log lines the tool may print).
@@ -58,7 +60,12 @@ export async function runASR(wavPath) {
   if (backend === 'none') return { skipped: true, reason: 'ASR_BACKEND=none' };
   try {
     const script = backend === 'parakeet' ? 'asr_parakeet.py' : 'transcribe_local.py';
-    const out = await runJson(`${PY} "${path.join(SCRIPTS, script)}" "${wavPath}" --model "${model}"`);
+    // Model dir is read from SHERPA_ASR_MODEL_DIR env var by asr_parakeet.py;
+    // dotenv loads it from .env so it's already in process.env at spawn time.
+    const extraEnv = process.env.SHERPA_ASR_MODEL_DIR
+      ? { SHERPA_ASR_MODEL_DIR: process.env.SHERPA_ASR_MODEL_DIR }
+      : {};
+    const out = await runJson(`${PY} "${path.join(SCRIPTS, script)}" "${wavPath}"`, { env: { ...process.env, ...extraEnv } });
     return { ...out, model: out.model || model, version: out.version || version };
   } catch (err) {
     return { skipped: true, reason: `ASR not wired/failed: ${err.message}` };
@@ -73,8 +80,14 @@ export async function runDiarization(wavPath) {
   const { backend, model, maxSpeakers } = config.models.diarization;
   if (backend === 'none') return { skipped: true, reason: 'DIAR_BACKEND=none' };
   try {
+    // Model paths are read from SHERPA_SEG_MODEL / SHERPA_EMBED_MODEL env vars
+    // by diarize_sortformer.py; dotenv loads them from .env at start.
+    const diarEnv = { ...process.env };
+    if (process.env.SHERPA_SEG_MODEL) diarEnv.SHERPA_SEG_MODEL = process.env.SHERPA_SEG_MODEL;
+    if (process.env.SHERPA_EMBED_MODEL) diarEnv.SHERPA_EMBED_MODEL = process.env.SHERPA_EMBED_MODEL;
     const out = await runJson(
-      `${PY} "${path.join(SCRIPTS, 'diarize_sortformer.py')}" "${wavPath}" --max-speakers ${maxSpeakers}`,
+      `${PY} "${path.join(SCRIPTS, 'diarize_sortformer.py')}" "${wavPath}" --max-speakers ${maxSpeakers || 0}`,
+      { env: diarEnv },
     );
     return { ...out, model: out.model || model };
   } catch (err) {
@@ -115,7 +128,15 @@ export async function extractFrames(videoPath, outDir, mode) {
   if (mode?.fps != null) args.push(`--fps ${mode.fps}`);
   if (mode?.interval != null) args.push(`--interval ${mode.interval}`);
   if (mode?.maxFrames != null) args.push(`--max-frames ${mode.maxFrames}`);
-  return runJson(`${PY} "${path.join(SCRIPTS, 'extract_frames_precise.py')}" "${videoPath}" "${outDir}" ${args.join(' ')}`);
+  const result = await runJson(`${PY} "${path.join(SCRIPTS, 'extract_frames_precise.py')}" "${videoPath}" "${outDir}" ${args.join(' ')}`);
+  // Fallback: if scene detection yields 0 frames (single-shot video), sample at
+  // 10s intervals so signatures and OSINT export always have material to work with.
+  if (mode?.scene != null && (!result.frames || result.frames.length === 0)) {
+    const fbArgs = ['--interval 10'];
+    if (mode?.maxFrames != null) fbArgs.push(`--max-frames ${mode.maxFrames}`);
+    return runJson(`${PY} "${path.join(SCRIPTS, 'extract_frames_precise.py')}" "${videoPath}" "${outDir}" ${fbArgs.join(' ')}`);
+  }
+  return result;
 }
 
 /**

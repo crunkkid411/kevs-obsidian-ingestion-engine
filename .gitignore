@@ -12,6 +12,9 @@ __pycache__/
 # build/runtime artifacts
 models/
 tools/ui_verify/runs/
+osint-export/
+forensic.db
+.venv/
 test.mp4
 *.mp4
 *.mkv

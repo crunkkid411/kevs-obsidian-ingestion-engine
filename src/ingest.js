@@ -22,7 +22,7 @@ import {
   connect, isIngested, registerSource, logCustody, logStage,
   insertWords, upsertSpeaker, insertUtterance, insertEmbedding,
   insertEvent, insertFrameSignature, insertLocationOfInterest,
-} from './db/forensic.js';
+} from './db/index.js';
 import { analyzeFrames as analyzeSignatures, aHash } from './analyze/signatures.js';
 import { speakerEvents, locationEvents } from './analyze/events.js';
 import { matchLocation, matchIdentity, speakerLabel, locationLabel, describeMoment } from './analyze/identify.js';

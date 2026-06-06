@@ -1,51 +1,108 @@
 #!/usr/bin/env python3
 """
-Audio speaker diarization with NVIDIA Sortformer (<=4 speakers).
+Audio speaker diarization via sherpa-onnx OfflineSpeakerDiarization.
+
+Uses pyannote segmentation-3-0 + CAM++ speaker embedding, no 4-speaker cap.
 
 Contract (stdout JSON):
-  { "model", "turns":[{"speaker":"spk_0","start":float,"end":float}] }
+  { "model": "sherpa-onnx-diarization",
+    "turns": [{"speaker": "spk_0", "start": float, "end": float}] }
 
-NOTE: Written against the model card, NOT executed here. Validate on the GPU box.
-Install: pip install -U nemo_toolkit[asr]
-Model: nvidia/diar_streaming_sortformer_4spk-v2.1
+On failure:
+  { "skipped": true, "reason": "..." }  -- exit 0
 
-IMPORTANT (evidence): Sortformer caps at 4 speakers. Livestreams with guests,
-callers, or crowds WILL exceed that and mislabel on audio alone — which is why
-the visual active-speaker stage (asd_lr_asd.py) is mandatory, not optional.
+Install: pip install sherpa-onnx
+Models:
+  - models/diarization/sherpa-onnx-pyannote-segmentation-3-0/model.onnx
+  - models/diarization/3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx
 
-Usage: python diarize_sortformer.py <audio.wav> [--max-speakers 4]
+Usage: python diarize_sortformer.py <audio.wav> [--max-speakers N]
 """
-import argparse, json, sys
+import argparse
+import json
+import os
+import sys
+
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_SEG_MODEL = os.path.join(
+    REPO_ROOT, "models", "diarization",
+    "sherpa-onnx-pyannote-segmentation-3-0", "model.onnx",
+)
+DEFAULT_EMBED_MODEL = os.path.join(
+    REPO_ROOT, "models", "diarization",
+    "3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx",
+)
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("audio")
-    ap.add_argument("--max-speakers", type=int, default=4)
-    ap.add_argument("--model", default="nvidia/diar_streaming_sortformer_4spk-v2.1")
+    ap.add_argument("--max-speakers", type=int, default=0,
+                    help="Max speakers (0 = auto-detect)")
+    ap.add_argument("--seg-model",
+                    default=os.environ.get("SHERPA_SEG_MODEL", DEFAULT_SEG_MODEL))
+    ap.add_argument("--embed-model",
+                    default=os.environ.get("SHERPA_EMBED_MODEL", DEFAULT_EMBED_MODEL))
+    # Keep --model for backwards compat with models.js (ignored)
+    ap.add_argument("--model", default=None, help="Ignored; use --seg-model/--embed-model")
     args = ap.parse_args()
 
-    from nemo.collections.asr.models import SortformerEncLabelModel
-    diar = SortformerEncLabelModel.from_pretrained(args.model)
-    diar.eval()
+    for f in (args.seg_model, args.embed_model):
+        if not os.path.exists(f):
+            print(json.dumps({"skipped": True, "reason": f"Model file not found: {f}"}))
+            sys.exit(0)
 
-    # Returns segments like "start end speaker" per the model card's predict API.
-    preds = diar.diarize(audio=[args.audio], batch_size=1)
+    import sherpa_onnx
+
+    config = sherpa_onnx.OfflineSpeakerDiarizationConfig(
+        segmentation=sherpa_onnx.OfflineSpeakerSegmentationModelConfig(
+            pyannote=sherpa_onnx.OfflineSpeakerSegmentationPyannoteModelConfig(
+                model=args.seg_model,
+            ),
+        ),
+        embedding=sherpa_onnx.SpeakerEmbeddingExtractorConfig(
+            model=args.embed_model,
+        ),
+        clustering=sherpa_onnx.FastClusteringConfig(
+            num_clusters=args.max_speakers if args.max_speakers > 0 else -1,
+            threshold=0.5,
+        ),
+        min_duration_on=0.3,
+        min_duration_off=0.5,
+    )
+
+    if not config.validate():
+        print(json.dumps({"skipped": True, "reason": "Invalid sherpa-onnx diarization config"}))
+        sys.exit(0)
+
+    diarizer = sherpa_onnx.OfflineSpeakerDiarization(config)
+
+    import wave
+    import array
+    with wave.open(args.audio, "rb") as wf:
+        sample_rate = wf.getframerate()
+        num_frames = wf.getnframes()
+        raw = wf.readframes(num_frames)
+        samples_int = array.array("h", raw)
+        samples = [s / 32768.0 for s in samples_int]
+
+    result = diarizer.process(samples)
 
     turns = []
-    for seg in preds[0]:
-        # seg may be "start end spk" string or a tuple depending on NeMo version
-        if isinstance(seg, str):
-            start, end, spk = seg.split()
-        else:
-            start, end, spk = seg
+    for seg in result.sort_by_start_time():
+        # seg.speaker is e.g. "speaker_00", "speaker_01", etc.
+        spk = seg.speaker.replace("speaker_", "spk_") if "speaker_" in str(seg.speaker) else f"spk_{seg.speaker}"
         turns.append({
-            "speaker": f"spk_{spk}" if not str(spk).startswith("spk") else str(spk),
-            "start": round(float(start), 3),
-            "end": round(float(end), 3),
+            "speaker": spk,
+            "start": round(float(seg.start), 3),
+            "end": round(float(seg.end), 3),
         })
 
-    print(json.dumps({"model": args.model, "turns": turns}))
+    print(json.dumps({
+        "model": "sherpa-onnx-diarization",
+        "turns": turns,
+    }))
 
 
 if __name__ == "__main__":
