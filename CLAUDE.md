@@ -1,5 +1,7 @@
 # CLAUDE.md — read this first
 
+**MASTER RULES FILE: "X:\AI-2\LESSONS.md"** (Jordan said yes, 2026-11-06). Read its Part 1, everything above the line "PART 2", before starting work. It is too large to load whole, so search the rest with `rg -n -i "word" "X:\AI-2\LESSONS.md"`. Add new lessons there too, with the date, harness and model.
+
 This repo is a **forensic video-ingestion tool** for an authorized investigative
 journalist: drop a drive of footage, it indexes everything (transcribe, diarize,
 identify people/places, flag the meaningful exceptions), and the investigator
