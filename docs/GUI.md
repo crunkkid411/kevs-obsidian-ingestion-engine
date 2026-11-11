@@ -20,11 +20,17 @@ matters; queue several and stitch them — never touching the original file.
    (frame-accurate video; alt bindings: `libmpv`/`egui-video`/the `mpv` crate) +
    `rusqlite` + `sqlite-vec`. (Qt + libmpv in C++ is the only acceptable
    alternative.) mpv must be installed (`winget install mpv` / bundle libmpv).
-2. **Mouse/keyboard/screenshot control for verification:** add the **Windows-MCP**
-   server to your Claude Code session, e.g. `claude mcp add windows-mcp -- <its
-   launch command from github.com/CursorTouch/Windows-MCP>`. That gives you tools
-   to screenshot, move/click the mouse, and type. (Alt: `claude-did-this/MCPControl`,
-   or `computer-use-mcp` for pure-Win32/Rust.)
+2. **Mouse/keyboard/screenshot control for verification — go DIRECT, not MCP.**
+   You already have full shell access to this machine, so just call a small helper
+   from your shell; you do NOT need an MCP server for local control.
+   - **Screenshot:** save a PNG (PowerShell `CopyFromScreen`, or `nircmd
+     savescreenshot`, or a tiny tool) → then **Read the PNG with your own vision.**
+   - **Click/type:** a one-line helper invoked via Bash — `nircmd` (movecursor /
+     click / sendkeypress), AutoHotkey, a ~20-line Python `ctypes.windll.user32`
+     SendInput script, or a small Rust `enigo` binary.
+   - MCP is **optional** — only use Windows-MCP (`github.com/CursorTouch/Windows-MCP`)
+     if you specifically want a ready-made, DPI/multi-monitor-hardened interface;
+     it is not required and is heavier than a direct script for a local box.
 3. **Vision:** you read the screenshots yourself — you already have vision. For
    precise click coordinates on a control, optionally run **ShowUI-2B**
    (github.com/showlab/ShowUI): screenshot + instruction → `CLICK(x,y)`.
@@ -183,22 +189,23 @@ The app is verified by **driving it like a human and reading the screen with
 Claude's vision** — not by unit tests alone, and not via a browser. This is a
 required part of the build (BUILD.md Phase 6).
 
-Concrete, current tooling (verified 2026-06):
-- **Control + screenshots: Windows-MCP** (CursorTouch/Windows-MCP) — an MCP server
-  for Windows computer use (mouse, keyboard, screenshots, window management),
-  widely used with Claude. Wire it as an MCP server for the build's Claude Code
-  instance. Alternative: **computer-use-mcp** (direct Win32 `SendInput` /
-  `IUIAutomation` / `DXGI` in Rust, no Python), or Anthropic's computer-use tool.
-- **Vision: Claude Code reads the screenshots directly** (it has vision). The loop
-  is: screenshot the app window → analyze what's on screen → issue the next
-  `CLICK(x,y)` / `TYPE(text)` / key via Windows-MCP → screenshot again → verify the
-  expected change. Save screenshots to `tools/ui_verify/runs/` for the record.
-- **Grounding helper (optional): ShowUI-2B** (showlab/ShowUI) — a small VLA that
-  maps a screenshot + instruction to a precise `CLICK(x,y)`; runs on CPU/3090. Use
-  it when Claude needs exact pixel coordinates for a control. https://github.com/showlab/ShowUI
-- The build agent should **find or create a Claude Code skill** (e.g.
-  `.claude/skills/ui-verify`) that wraps this screenshot→decide→act→screenshot loop
-  so it's reusable across scenarios.
+Concrete, current tooling (verified 2026-06) — DIRECT shell control, MCP optional:
+- **Control + screenshots (direct):** you have full shell access, so call a small
+  local helper — screenshot to PNG (PowerShell `CopyFromScreen` / `nircmd
+  savescreenshot`), and input via `nircmd` / AutoHotkey / a Python `user32`
+  SendInput script / a Rust `enigo` binary. No server required. (Only reach for an
+  MCP — Windows-MCP, or `computer-use-mcp` for pure-Win32/Rust — if you want a
+  prebuilt, DPI-hardened interface; it's a convenience, not a requirement.)
+- **Vision: you read the screenshots directly** (you have vision). The loop is:
+  screenshot the app window → look at it → issue the next `CLICK(x,y)` /
+  `TYPE(text)` / key via the helper → screenshot again → verify the expected
+  change. Save screenshots to `tools/ui_verify/runs/` for the record.
+- **Grounding helper (optional): ShowUI-2B** (showlab/ShowUI) — a small *model used
+  as a tool* (not an agent): screenshot + instruction → precise `CLICK(x,y)`; runs
+  on CPU/3090. Use it when you need exact pixel coordinates. https://github.com/showlab/ShowUI
+- Wrap the loop in a **`.claude/skills/ui-verify`** skill so it's reusable. You may
+  also **delegate** UI-driving to a specialist agent if you have one (see
+  `docs/ORCHESTRATION.md`) — but you stay accountable for the result.
 
 When a scenario fails, the agent diagnoses from the **screenshot** (+ the app's log
 file), fixes the code, rebuilds, and re-runs — it never asks the user to read or

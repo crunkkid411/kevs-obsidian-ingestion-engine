@@ -22,9 +22,10 @@ architecture.
    You will instinctively want a web UI + Playwright. **Forbidden** (the user has
    tried web video extensively and rejected it). Build Rust `egui` + `libmpv`
    (Phase 5), and verify by driving the real app and reading screenshots with your
-   vision via the **Windows-MCP** server you add to yourself (Phase 6 has the exact
-   commands). You do NOT need to research this — `docs/GUI.md` tells you how to tool
-   yourself.
+   vision, driving the app with a **direct local input/screenshot helper** you call
+   from your own shell (no MCP needed — you have full machine access; Phase 6 has
+   the details). You do NOT need to research this — `docs/GUI.md` tells you how to
+   tool yourself.
 5. **Use SUBAGENTS to keep context focused.** Spawn one subagent per phase/stage
    below; have it do the work, run its acceptance test, and report back a short
    result. Don't carry every stage's detail in your own context.
@@ -152,11 +153,14 @@ stacks are unreliable for this; the user has tried them). Keep it simple. Minimu
 Do not declare done from unit tests alone. **Drive the real app and verify by
 SCREENSHOT using Claude's vision.** This is mandatory.
 
-- **Control + capture:** wire **Windows-MCP** (CursorTouch/Windows-MCP) as an MCP
-  server for your Claude Code instance — it does mouse, keyboard, and screenshots
-  on Windows. (Alternatives: `computer-use-mcp` = direct Win32 SendInput in Rust,
-  no Python; or Anthropic's computer-use tool.) **Find or create a Claude Code
-  skill** `.claude/skills/ui-verify` that wraps the loop.
+- **Control + capture — DIRECT from your shell (no MCP needed).** You have full
+  local access, so call a small helper: screenshot to a PNG (PowerShell
+  `CopyFromScreen` / `nircmd savescreenshot`) and **Read the PNG with your vision**;
+  click/type via `nircmd` / AutoHotkey / a Python `user32` SendInput script / a Rust
+  `enigo` binary. MCP (Windows-MCP, computer-use-mcp) is **optional** convenience,
+  not required — don't add a server for something a 20-line script does locally.
+  **Find or create a `.claude/skills/ui-verify` skill** wrapping the loop. You MAY
+  delegate UI-driving to a specialist agent (see `docs/ORCHESTRATION.md`).
 - **Vision:** YOU read the screenshots (you have vision). The loop per step:
   screenshot the app window → look at it → decide the next action → issue
   `CLICK(x,y)` / `TYPE(text)` / keypress via Windows-MCP → screenshot again →
