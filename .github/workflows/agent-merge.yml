@@ -1,0 +1,51 @@
+# agent-merge: when an agent pushes any branch other than the default, bring in the latest
+# default branch, run .github/agent-check.sh, and if it is green put the work on the default
+# branch and delete the side branch. If it is red the branch stays, and the hourly sweep on
+# Jordan's PC hands it to the free fixer agent. Nobody ever reviews a pull request.
+# Source of truth: crunkkid411/agent-ci (X:\AI-2\agent-ci). Edit there, then run install.sh.
+name: agent-merge
+on:
+  push:
+    branches-ignore: [master, main]
+permissions:
+  contents: write
+# One check per branch at a time; a newer push on the same branch replaces the older check.
+# (A single shared queue cancelled other branches' waiting checks - found in the 2026-11-10 self-test.)
+concurrency:
+  group: agent-merge-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DEF: ${{ github.event.repository.default_branch }}
+      BR: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Bring in the latest default branch
+        run: |
+          git config user.name "agent-merge"
+          git config user.email "agent-merge@users.noreply.github.com"
+          git merge --no-edit "origin/$DEF" || { echo "::error::This branch conflicts with $DEF. The fixer agent must merge it by hand."; exit 1; }
+      - uses: actions/setup-go@v5
+        if: hashFiles('go.mod') != ''
+        with:
+          go-version-file: go.mod
+      - name: Checks
+        run: bash .github/agent-check.sh "origin/$DEF"
+      - name: Put the work on the default branch, delete this branch
+        run: |
+          for try in 1 2 3; do
+            if git push origin "HEAD:$DEF"; then
+              # Delete the branch ONLY if it still points at the commit we checked. If the
+              # agent pushed more since, that newer push has its own check; never lose it.
+              git push --force-with-lease="refs/heads/$BR:$GITHUB_SHA" origin ":refs/heads/$BR" \
+                || echo "Branch moved on since this check; its newer push gets its own check."
+              exit 0
+            fi
+            git fetch origin "$DEF" && git merge --no-edit "origin/$DEF" || exit 1
+          done
+          exit 1
