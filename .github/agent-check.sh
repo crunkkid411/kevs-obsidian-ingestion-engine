@@ -21,7 +21,7 @@ else
 fi
 
 fail=0; ran=0
-step() { ran=1; echo "agent-check: $*"; "$@" || { echo "agent-check: FAILED: $*"; fail=1; }; }
+step() { ran=1; echo "agent-check: $*"; "$@" || { echo "agent-check: FAILED: $*"; fail=1; return 1; }; }  # return 1: callers chain steps with && inside a subshell, where fail=1 is lost
 pick() { for f in "${changed[@]}"; do [ -f "$f" ] && printf '%s\n' "$f"; done | grep -E "$1"; }
 PY=$(command -v python3 || command -v python || true)
 
